@@ -12,16 +12,57 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+
 export function SignupForm({
   className,
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter();
-  const handleloginbtnClick = (e: React.MouseEvent<HTMLButtonElement>) => {
+
+  const [formdata, setformdata] = useState({
+    name: "",
+    username: "",
+    email: "",
+    password: "",
+  });
+
+  // Add onChange handler to update form state
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { id, value } = e.target;
+    setformdata((prev) => ({
+      ...prev,
+      [id]: value,
+    }));
+  };
+
+  const handlesignupbtnclick = async (
+    e: React.MouseEvent<HTMLButtonElement>
+  ) => {
     e.preventDefault();
 
-    router.push("../dashboard");
+    try {
+      const res = await fetch("http://localhost:5000/signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(formdata),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      console.log("User created successfully:", data);
+
+      // router.push("../dashboard");
+    } catch (error) {
+      console.error("Signup failed:", error);
+    }
   };
+
   return (
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
@@ -53,11 +94,24 @@ export function SignupForm({
               <div className="grid gap-6">
                 <div className="grid gap-3">
                   <div className="grid gap-3">
-                    <Label htmlFor="email">Name</Label>
+                    <Label htmlFor="name">Name</Label>
                     <Input
                       id="name"
                       type="text"
+                      value={formdata.name}
+                      onChange={handleInputChange}
                       placeholder="your name..."
+                      required
+                    />
+                  </div>
+                  <div className="grid gap-3">
+                    <Label htmlFor="username">User Name</Label>
+                    <Input
+                      id="username"
+                      type="text"
+                      value={formdata.username}
+                      onChange={handleInputChange}
+                      placeholder="your username..."
                       required
                     />
                   </div>
@@ -65,23 +119,19 @@ export function SignupForm({
                   <Input
                     id="email"
                     type="email"
+                    value={formdata.email}
+                    onChange={handleInputChange}
                     placeholder="m@example.com"
                     required
                   />
                 </div>
                 <div className="grid gap-3">
-                  {/* <div className="flex items-center">
-                    <a
-                    href="#"
-                    className="ml-auto text-sm underline-offset-4 hover:underline"
-                    >
-                    Forgot your password?
-                    </a>
-                    </div> */}
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
+                    value={formdata.password}
+                    onChange={handleInputChange}
                     placeholder="password"
                     required
                   />
@@ -89,7 +139,7 @@ export function SignupForm({
                 <Button
                   type="submit"
                   className="w-full"
-                  onClick={handleloginbtnClick}
+                  onClick={handlesignupbtnclick}
                 >
                   Signup
                 </Button>
