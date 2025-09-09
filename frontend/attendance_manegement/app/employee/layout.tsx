@@ -25,16 +25,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
-      <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      >
-        <div className="flex flex-col h-screen max-h-screen">
-          <Nav />
-          <div className="flex-grow overflow-y-auto bg-muted">{children}</div>
-          <Footer />
-        </div>
-      </body>
-    </html>
+    <div className="flex flex-col h-screen max-h-screen">
+      <Nav />
+      <div className="flex-grow overflow-y-auto bg-muted">{children}</div>
+      <Footer />
+    </div>
   );
 }

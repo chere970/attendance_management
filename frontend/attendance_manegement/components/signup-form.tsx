@@ -10,7 +10,6 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -19,47 +18,63 @@ export function SignupForm({
   ...props
 }: React.ComponentProps<"div">) {
   const router = useRouter();
-
-  const [formdata, setformdata] = useState({
+  const [formData, setFormData] = useState({
     name: "",
     username: "",
     email: "",
     password: "",
+    role: "employee",
+    department: "",
+    photo: "default.jpg",
+    fingerprint: "default_fingerprint",
   });
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  // Add onChange handler to update form state
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleInputChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+  ) => {
     const { id, value } = e.target;
-    setformdata((prev) => ({
+    setFormData((prev) => ({
       ...prev,
       [id]: value,
     }));
   };
 
-  const handlesignupbtnclick = async (
-    e: React.MouseEvent<HTMLButtonElement>
-  ) => {
+  const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
-      const res = await fetch("http://localhost:5000/signup", {
+      const res = await fetch("http://localhost:5000/prisma/signup", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formdata),
+        body: JSON.stringify(formData),
       });
 
       const data = await res.json();
+
       if (!res.ok) {
-        throw new Error(`HTTP error! status: ${res.status}`);
+        throw new Error(data.error || "Signup failed");
       }
 
-      console.log("User created successfully:", data);
+      // Store token and user data
+      localStorage.setItem("token", data.token);
+      localStorage.setItem("user", JSON.stringify(data.user));
 
-      // router.push("../dashboard");
-    } catch (error) {
-      console.error("Signup failed:", error);
+      // Redirect based on role
+      if (data.user.role === "admin") {
+        router.push("/admin/dashboard");
+      } else {
+        router.push("/employee/dashboard");
+      }
+    } catch (error: any) {
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -67,97 +82,111 @@ export function SignupForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Welcome </CardTitle>
-          <CardDescription>
-            Signup with your Apple or Google account
-          </CardDescription>
+          <CardTitle className="text-xl">Create Account</CardTitle>
+          <CardDescription>Sign up for a new account</CardDescription>
         </CardHeader>
         <CardContent>
-          <form>
+          <form onSubmit={handleSignup}>
             <div className="grid gap-6">
-              <div className="flex flex-col gap-4">
-                <Button variant="outline" className="w-full">
-                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
-                    <path
-                      d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"
-                      fill="currentColor"
-                    />
-                  </svg>
-                  Signup with Google
-                </Button>
-              </div>
-              <div className="after:border-border relative text-center text-sm after:absolute after:inset-0 after:top-1/2 after:z-0 after:flex after:items-center after:border-t">
-                <span className="bg-card text-muted-foreground relative z-10 px-2">
-                  Or continue with
-                </span>
-              </div>
+              {error && (
+                <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
+                  {error}
+                </div>
+              )}
+
               <div className="grid gap-6">
                 <div className="grid gap-3">
-                  <div className="grid gap-3">
-                    <Label htmlFor="name">Name</Label>
-                    <Input
-                      id="name"
-                      type="text"
-                      value={formdata.name}
-                      onChange={handleInputChange}
-                      placeholder="your name..."
-                      required
-                    />
-                  </div>
-                  <div className="grid gap-3">
-                    <Label htmlFor="username">User Name</Label>
-                    <Input
-                      id="username"
-                      type="text"
-                      value={formdata.username}
-                      onChange={handleInputChange}
-                      placeholder="your username..."
-                      required
-                    />
-                  </div>
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input
+                    id="name"
+                    type="text"
+                    value={formData.name}
+                    onChange={handleInputChange}
+                    placeholder="Your full name"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-3">
+                  <Label htmlFor="username">Username</Label>
+                  <Input
+                    id="username"
+                    type="text"
+                    value={formData.username}
+                    onChange={handleInputChange}
+                    placeholder="Choose a username"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-3">
                   <Label htmlFor="email">Email</Label>
                   <Input
                     id="email"
                     type="email"
-                    value={formdata.email}
+                    value={formData.email}
                     onChange={handleInputChange}
                     placeholder="m@example.com"
                     required
                   />
                 </div>
+
+                <div className="grid gap-3">
+                  <Label htmlFor="role">Role</Label>
+                  <select
+                    id="role"
+                    value={formData.role}
+                    onChange={handleInputChange}
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    required
+                  >
+                    <option value="employee">EMPLOYEE</option>
+                    <option value="admin">ADMIN</option>
+                  </select>
+                </div>
+
+                <div className="grid gap-3">
+                  <Label htmlFor="department">Department</Label>
+                  <Input
+                    id="department"
+                    type="text"
+                    value={formData.department}
+                    onChange={handleInputChange}
+                    placeholder="Your department"
+                    required
+                  />
+                </div>
+
                 <div className="grid gap-3">
                   <Label htmlFor="password">Password</Label>
                   <Input
                     id="password"
                     type="password"
-                    value={formdata.password}
+                    value={formData.password}
                     onChange={handleInputChange}
-                    placeholder="password"
+                    placeholder="Create a password"
                     required
                   />
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  onClick={handlesignupbtnclick}
-                >
-                  Signup
+
+                <Button type="submit" className="w-full" disabled={loading}>
+                  {loading ? "Creating Account..." : "Create Account"}
                 </Button>
               </div>
+
               <div className="text-center text-sm">
-                Do you have an account?{" "}
-                <a href="#" className="underline underline-offset-4 ">
-                  Login
+                Already have an account?{" "}
+                <a
+                  href="/employee/login"
+                  className="underline underline-offset-4"
+                >
+                  Sign in
                 </a>
               </div>
             </div>
           </form>
         </CardContent>
       </Card>
-      <div className="text-muted-foreground *:[a]:hover:text-primary text-center text-xs text-balance *:[a]:underline *:[a]:underline-offset-4">
-        By clicking continue, you agree to our <a href="#">Terms of Service</a>{" "}
-        and <a href="#">Privacy Policy</a>.
-      </div>
     </div>
   );
 }

@@ -19,17 +19,61 @@ enum EmployeeStatus {
   CHECK_OUT
 }
 
+enum EmployeeRole {
+  ADMIN
+  EMPLOYEE
+  emp
+  employee
+  Admin
+  admin
+}
+
 model Employee {
   id          String          @id @default(auto()) @map("_id") @db.ObjectId
   name        String?
   username    String
   email       String          @unique
   password    String
-  role        String
+  role        EmployeeRole?   @default(EMPLOYEE)
   department  String
   photo       String
   fingerprint String
   status      EmployeeStatus? @default(CHECK_OUT)
+  
+  // Add this relation
+  requests    Request[]
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum RequestType {
+  LEAVE
+  SICK_LEAVE
+  VACATION
+  EMERGENCY
+  OTHER
+}
+
+model Request {
+  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  employeeId  String
+  type        RequestType
+  title       String
+  description String
+  startDate   DateTime
+  endDate     DateTime
+  status      RequestStatus @default(PENDING)
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  approvedBy  String?       // Admin who approved/rejected
+  comments    String?       // Admin comments
+  
+  // Relations
+  employee    Employee      @relation(fields: [employeeId], references: [id])
 }
 
 model Attendance {

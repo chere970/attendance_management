@@ -1,5 +1,7 @@
 import express, { Request, Response } from 'express'
 import { PrismaClient } from '../../generated/prisma'
+import bcrypt from 'bcryptjs';
+import jwt from 'jsonwebtoken';
 
 const router = express.Router()
 const prisma = new PrismaClient()
@@ -22,7 +24,7 @@ router.get("/summary", async (req: Request, res: Response) => {
     const today=new Date();
     today.setHours(0,0,0,0);
     const todaysCheckIns = await prisma.attendance.count({ where: { checkIn: { gte: today } } });
-  
+
      const now = new Date();
       const days = Array.from({ length: 7 }).map((_, i) => {
         const d = new Date();
@@ -51,7 +53,7 @@ router.get("/summary", async (req: Request, res: Response) => {
     console.error("GET /prisma/summary error:",err);
     res.status(500).json({error:err?.message || "Failed to load summary"});
   }
-  
+
   });
 
 router.get('/:id', async (req: Request, res: Response) => {
@@ -60,7 +62,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     if (req.params.id === 'favicon.ico' || !/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
       return res.status(404).json({ error: "Invalid employee ID" });
     }
-    
+
     const employee = await prisma.employee.findUnique({ where: { id: req.params.id } });
     if (!employee) {
       return res.status(404).json({ error: "Employee not found" });
@@ -85,9 +87,14 @@ router.patch('/:id', async (req: Request, res: Response) => {
   for (const k of allowed) if (k in req.body) data[k] = req.body[k];
 
   if (!Object.keys(data).length) return res.status(400).json({ error: "No valid fields to update" });
-  // if (!Object.keys(data).length) return res.status(400).json({ error: "No valid fields to update" });
 
   try {
+    // Hash password if it's being updated
+    if (data.password) {
+      const hashedPassword = await bcrypt.hash(data.password, 10);
+      data.password = hashedPassword;
+    }
+
     const updated = await prisma.employee.update({ where: { id: req.params.id }, data });
     res.json(updated);
   } catch (err: any) {
@@ -116,12 +123,12 @@ router.delete("/:id", async (req: Request, res: Response) => {
 router.get("/:id/recent-attendance", async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
-    
+
     // Skip favicon.ico and other non-ObjectId requests
     if (id === 'favicon.ico' || !/^[0-9a-fA-F]{24}$/.test(id)) {
       return res.status(404).json({ error: "Invalid employee ID" });
     }
-    
+
     const list = await prisma.attendance.findMany({
       where: { employeeId: id },
       orderBy: { checkIn: "desc" },
@@ -142,6 +149,10 @@ if(!data.username || !data.email || !data.password || !data.role || !data.depart
   return res.status(400).json({error:"Missing required fields"});
 }
 try{
+  // Hash the password before storing it
+  const hashedPassword = await bcrypt.hash(data.password, 10);
+  data.password = hashedPassword;
+
   const created=await prisma.employee.create({data:data as any});
   res.status(201).json(created);
 }catch(err:any){
@@ -154,6 +165,126 @@ try{
 
 
 
+});
+
+// Login endpoint
+router.post("/login", async (req: Request, res: Response) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password) {
+      return res.status(400).json({ error: "Email and password are required" });
+    }
+
+    // Find user by email
+    const user = await prisma.employee.findUnique({
+      where: { email }
+    });
+
+    if (!user) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Check password (you'll need to hash passwords during signup)
+    const isValidPassword = await bcrypt.compare(password, user.password);
+
+    if (!isValidPassword) {
+      return res.status(401).json({ error: "Invalid credentials" });
+    }
+
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department
+      }
+    });
+
+  } catch (err: any) {
+    console.error("POST /prisma/login error:", err);
+    res.status(500).json({ error: "Login failed" });
+  }
+});
+
+// Signup endpoint
+router.post("/signup", async (req: Request, res: Response) => {
+  try {
+    const { name, username, email, password, role = 'employee', department, photo, fingerprint } = req.body;
+
+    if (!name || !username || !email || !password || !department || !photo || !fingerprint) {
+      return res.status(400).json({ error: "All fields are required" });
+    }
+
+    // Check if user already exists
+    const existingUser = await prisma.employee.findUnique({
+      where: { email }
+    });
+
+    if (existingUser) {
+      return res.status(400).json({ error: "User already exists" });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create user
+    const user = await prisma.employee.create({
+      data: {
+        name,
+        username,
+        email,
+        password: hashedPassword,
+        role,
+        department,
+        photo,
+        fingerprint,
+        status: 'CHECK_OUT'
+      }
+    });
+
+    // Create JWT token
+    const token = jwt.sign(
+      {
+        userId: user.id,
+        email: user.email,
+        role: user.role
+      },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: '24h' }
+    );
+
+    res.status(201).json({
+      token,
+      user: {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        department: user.department
+      }
+    });
+
+  } catch (err: any) {
+    console.error("POST /prisma/signup error:", err);
+    if (err?.code === "P2002") {
+      return res.status(400).json({ error: "Email already exists" });
+    }
+    res.status(500).json({ error: "Signup failed" });
+  }
 });
 
 

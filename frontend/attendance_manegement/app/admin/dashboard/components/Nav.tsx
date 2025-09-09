@@ -34,7 +34,7 @@ export const Nav = () => {
           </Link>
           <Link
             className="text-lg font-semibold text-gray-700 hover:text-purple-600  hover:text-xl transition-colors"
-            href="/leaverequest"
+            href="/admin/dashboard/requests"
           >
             Request
           </Link>

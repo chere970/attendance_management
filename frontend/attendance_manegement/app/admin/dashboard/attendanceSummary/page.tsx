@@ -1,7 +1,9 @@
 "use client";
-import React, { useEffect, useState } from "react";
+
+import { useState, useEffect } from "react";
 import { Line } from "react-chartjs-2";
-import { format, parseISO } from "date-fns";
+import { format } from "date-fns";
+import { parseISO } from "date-fns/parseISO";
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -21,83 +23,266 @@ ChartJS.register(
   Legend
 );
 
-type Summary = {
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Users, UserCheck, Calendar, TrendingUp } from "lucide-react";
+
+interface SummaryData {
   totalEmployees: number;
   onDuty: number;
   todaysCheckIns: number;
   checkInsPerDay: { date: string; count: number }[];
-};
+}
 
-export default function AttendanceSummary() {
-  const [data, setData] = useState<Summary | null>(null);
+const AttendanceSummaryPage = () => {
+  const [data, setData] = useState<SummaryData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const res = await fetch("http://localhost:5000/prisma/summary", {
-          cache: "no-store",
-        });
-        if (!res.ok) throw new Error("Failed to load summary");
-        const json = await res.json();
-        if (mounted) setData(json);
-      } catch (e: any) {
-        if (mounted) setError(e.message || "Error");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
+    fetchSummary();
   }, []);
 
-  if (loading) return <div className="p-4">Loading summary…</div>;
-  if (error) return <div className="p-4 text-red-600">{error}</div>;
-  if (!data) return null;
+  const fetchSummary = async () => {
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        setError("Authentication required");
+        return;
+      }
 
-  const labels = data.checkInsPerDay.map((d) =>
-    format(parseISO(d.date), "MMM d")
-  );
-  const dataset = {
-    labels,
-    datasets: [
-      {
-        label: "Check-ins",
-        data: data.checkInsPerDay.map((d) => d.count),
-        borderColor: "#6366f1",
-        backgroundColor: "rgba(99,102,241,0.12)",
-        tension: 0.25,
-        fill: true,
-      },
-    ],
+      const res = await fetch("http://localhost:5000/prisma/summary", {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to fetch summary data");
+      }
+
+      const summaryData = await res.json();
+      setData(summaryData);
+    } catch (err: any) {
+      setError(err.message || "Failed to load summary");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  return (
-    <div className="bg-white p-4 rounded-lg shadow-sm">
-      <div className="grid grid-cols-3 gap-4 mb-4">
-        <div className="p-3 bg-gray-50 rounded-lg text-center">
-          <div className="text-sm text-gray-500">Total employees</div>
-          <div className="text-2xl font-bold">{data.totalEmployees}</div>
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric",
+    });
+  };
+
+  // Create chart data only when data is available
+  const chartData = data
+    ? {
+        labels: data.checkInsPerDay.map((d) =>
+          format(parseISO(d.date), "MMM d")
+        ),
+        datasets: [
+          {
+            label: "Check-ins",
+            data: data.checkInsPerDay.map((d) => d.count),
+            borderColor: "#6366f1",
+            backgroundColor: "rgba(99,102,241,0.12)",
+            tension: 0.25,
+            fill: true,
+          },
+        ],
+      }
+    : null;
+
+  if (loading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex justify-center items-center min-h-[400px]">
+          <div className="text-lg">Loading attendance summary...</div>
         </div>
-        <div className="p-3 bg-gray-50 rounded-lg text-center">
-          <div className="text-sm text-gray-500">On duty</div>
-          <div className="text-2xl font-bold text-emerald-600">
-            {data.onDuty}
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex justify-center items-center min-h-[400px]">
+          <div className="text-center">
+            <div className="text-red-600 text-lg mb-2">
+              Error loading summary
+            </div>
+            <div className="text-gray-600">{error}</div>
           </div>
         </div>
-        <div className="p-3 bg-gray-50 rounded-lg text-center">
-          <div className="text-sm text-gray-500">Check-ins today</div>
-          <div className="text-2xl font-bold">{data.todaysCheckIns}</div>
+      </div>
+    );
+  }
+
+  if (!data) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="flex justify-center items-center min-h-[400px]">
+          <div className="text-lg">No data available</div>
         </div>
       </div>
+    );
+  }
 
-      <div>
-        <h3 className="text-sm text-gray-700 mb-2">Last 7 days — check-ins</h3>
-        <Line data={dataset} />
+  return (
+    <div className="container mx-auto p-6">
+      <div className="mb-6">
+        <h1 className="text-3xl font-bold text-gray-900">Attendance Summary</h1>
+        <p className="text-gray-600 mt-2">
+          Overview of employee attendance and statistics
+        </p>
       </div>
+
+      {/* Key Metrics */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Total Employees
+            </CardTitle>
+            <Users className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.totalEmployees}</div>
+            <p className="text-xs text-muted-foreground">
+              Registered in system
+            </p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Currently On Duty
+            </CardTitle>
+            <UserCheck className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold text-green-600">
+              {data.onDuty}
+            </div>
+            <p className="text-xs text-muted-foreground">Checked in today</p>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">
+              Today's Check-ins
+            </CardTitle>
+            <Calendar className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{data.todaysCheckIns}</div>
+            <p className="text-xs text-muted-foreground">
+              Total check-ins today
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* 7-Day Trend */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <TrendingUp className="h-5 w-5" />
+            <span>Last 7 Days - Daily Check-ins</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {chartData ? (
+            <div className="h-64">
+              <Line
+                data={chartData}
+                options={{
+                  responsive: true,
+                  maintainAspectRatio: false,
+                  plugins: {
+                    legend: {
+                      position: "top" as const,
+                    },
+                    tooltip: {
+                      mode: "index",
+                      intersect: false,
+                    },
+                  },
+                  scales: {
+                    x: {
+                      display: true,
+                      title: {
+                        display: true,
+                        text: "Date",
+                      },
+                    },
+                    y: {
+                      display: true,
+                      title: {
+                        display: true,
+                        text: "Check-ins",
+                      },
+                      beginAtZero: true,
+                    },
+                  },
+                  interaction: {
+                    mode: "nearest",
+                    axis: "x",
+                    intersect: false,
+                  },
+                }}
+              />
+            </div>
+          ) : (
+            <div className="h-64 flex items-center justify-center text-gray-500">
+              No chart data available
+            </div>
+          )}
+
+          {/* Summary Stats */}
+          <div className="mt-6 pt-4 border-t">
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
+              <div>
+                <div className="text-lg font-semibold">
+                  {data.checkInsPerDay.reduce((sum, day) => sum + day.count, 0)}
+                </div>
+                <div className="text-xs text-gray-600">Total (7 days)</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold">
+                  {Math.round(
+                    data.checkInsPerDay.reduce(
+                      (sum, day) => sum + day.count,
+                      0
+                    ) / 7
+                  )}
+                </div>
+                <div className="text-xs text-gray-600">Daily Average</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold text-green-600">
+                  {Math.max(...data.checkInsPerDay.map((d) => d.count))}
+                </div>
+                <div className="text-xs text-gray-600">Peak Day</div>
+              </div>
+              <div>
+                <div className="text-lg font-semibold">
+                  {((data.onDuty / data.totalEmployees) * 100).toFixed(1)}%
+                </div>
+                <div className="text-xs text-gray-600">Attendance Rate</div>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
-}
+};
+
+export default AttendanceSummaryPage;
