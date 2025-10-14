@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 interface UserProfile {
   id: string;
   name: string;
+  employeeId: string;
   username: string;
   email: string;
   role: string;
@@ -38,6 +39,7 @@ const ProfilePage = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const router = useRouter();
 
   useEffect(() => {
@@ -67,11 +69,70 @@ const ProfilePage = () => {
       }
 
       const userData = await response.json();
+      // Prepend backend URL to photo path for proper image display
+      if (userData.photo && userData.photo.startsWith("/uploads/")) {
+        userData.photo = `http://localhost:5000${userData.photo}`;
+      }
       setUser(userData);
     } catch (err: any) {
       setError(err.message || "Failed to load profile");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handlePhotoUpload = async (
+    event: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validate file type
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setError("File size must be less than 5MB");
+      return;
+    }
+
+    setUploadingPhoto(true);
+    setError(null);
+
+    try {
+      const token = localStorage.getItem("token");
+      const payload = JSON.parse(atob(token!.split(".")[1]));
+      const userId = payload.userId;
+
+      const formData = new FormData();
+      formData.append("photo", file);
+
+      const response = await fetch(`http://localhost:5000/prisma/${userId}`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to upload photo");
+      }
+
+      const updatedUser = await response.json();
+      // Prepend backend URL to photo path for proper display
+      if (updatedUser.photo && updatedUser.photo.startsWith("/uploads/")) {
+        updatedUser.photo = `http://localhost:5000${updatedUser.photo}`;
+      }
+      setUser(updatedUser);
+    } catch (err: any) {
+      setError(err.message || "Failed to upload photo");
+    } finally {
+      setUploadingPhoto(false);
     }
   };
 
@@ -173,7 +234,7 @@ const ProfilePage = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
       <div className="container mx-auto p-6 max-w-4xl">
-        {/* Fancy Header */}
+        {/* Fancy Header
         <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 p-8 text-white shadow-2xl">
           <div className="absolute inset-0 bg-black/10"></div>
           <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
@@ -187,7 +248,7 @@ const ProfilePage = () => {
               View and manage your account information
             </p>
           </div>
-        </div>
+        </div> */}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Profile Photo Card */}
@@ -205,10 +266,28 @@ const ProfilePage = () => {
                     ) : (
                       <User className="w-16 h-16 text-gray-400" />
                     )}
+                    {uploadingPhoto && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                      </div>
+                    )}
                   </div>
-                  <button className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors">
+                  <button
+                    className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    disabled={uploadingPhoto}
+                    onClick={() =>
+                      document.getElementById("photo-upload")?.click()
+                    }
+                  >
                     <Camera className="w-4 h-4" />
                   </button>
+                  <input
+                    id="photo-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoUpload}
+                    className="hidden"
+                  />
                 </div>
 
                 <h2 className="text-xl font-bold text-gray-900 mt-4">
@@ -315,7 +394,7 @@ const ProfilePage = () => {
                       Employee ID
                     </label>
                     <p className="text-gray-900 font-medium font-mono text-sm">
-                      {user.id.slice(-8).toUpperCase()}
+                      {user.employeeId.slice(-8).toUpperCase()}
                     </p>
                   </div>
                 </div>

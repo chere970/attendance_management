@@ -4,6 +4,7 @@ import prismaRouter from './routes/prismahome';
 import cors from "cors";
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
 
 // Load environment variables
 dotenv.config();
@@ -226,11 +227,14 @@ app.post("/attendance/checkin", verifyToken, async (req: Request, res: Response)
     }
 
     // Create new attendance record
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate()); // Date only, no time
+
     const attendance = await prisma.attendance.create({
       data: {
         employeeId,
-        date: new Date(),
-        checkIn: new Date(),
+        date: today,
+        checkIn: now,
       },
     });
 
@@ -261,7 +265,24 @@ app.post("/attendance/checkout", verifyToken, async (req: Request, res: Response
       return res.status(401).json({ error: "User not authenticated" });
     }
 
+    console.log("Check-out attempt for employee:", employeeId);
+
     // Find the latest attendance record without check-out
+    // First, let's check all attendance records for this employee
+    console.log("Searching for attendance records with employeeId:", employeeId);
+
+    const allRecords = await prisma.attendance.findMany({
+      where: {
+        employeeId,
+      },
+      orderBy: {
+        checkIn: 'desc',
+      },
+    });
+
+    console.log("All attendance records for employee:", allRecords);
+    console.log("Number of records found:", allRecords.length);
+
     const attendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
@@ -272,7 +293,10 @@ app.post("/attendance/checkout", verifyToken, async (req: Request, res: Response
       },
     });
 
+    console.log("Found attendance record with checkOut=null:", attendance);
+
     if (!attendance) {
+      console.log("No active check-in found for employee:", employeeId);
       return res.status(400).json({ error: "No active check-in found" });
     }
 
@@ -284,11 +308,15 @@ app.post("/attendance/checkout", verifyToken, async (req: Request, res: Response
       },
     });
 
+    console.log("Updated attendance:", updatedAttendance);
+
     // Update employee status
     await prisma.employee.update({
       where: { id: employeeId },
       data: { status: "CHECK_OUT" },
     });
+
+    console.log("Check-out successful for employee:", employeeId);
 
     res.json({
       message: "Check-out successful",
@@ -311,12 +339,34 @@ app.get("/attendance/today", verifyToken, async (req: Request, res: Response) =>
       return res.status(401).json({ error: "User not authenticated" });
     }
 
+    // First, check if there's any active check-in (checkOut is null)
+    const activeAttendance = await prisma.attendance.findFirst({
+      where: {
+        employeeId,
+        checkOut: null,
+      },
+      orderBy: {
+        checkIn: 'desc',
+      },
+    });
+
+    // If there's an active check-in, return it
+    if (activeAttendance) {
+      return res.json({
+        attendance: activeAttendance,
+        isCheckedIn: true,
+        checkInTime: activeAttendance.checkIn,
+        checkOutTime: null,
+      });
+    }
+
+    // If no active check-in, check for today's completed attendance
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     const tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
 
-    const attendance = await prisma.attendance.findFirst({
+    const todayAttendance = await prisma.attendance.findFirst({
       where: {
         employeeId,
         date: {
@@ -324,13 +374,16 @@ app.get("/attendance/today", verifyToken, async (req: Request, res: Response) =>
           lt: tomorrow,
         },
       },
+      orderBy: {
+        checkIn: 'desc',
+      },
     });
 
     res.json({
-      attendance,
-      isCheckedIn: attendance && !attendance.checkOut,
-      checkInTime: attendance?.checkIn,
-      checkOutTime: attendance?.checkOut,
+      attendance: todayAttendance,
+      isCheckedIn: false,
+      checkInTime: todayAttendance?.checkIn,
+      checkOutTime: todayAttendance?.checkOut,
     });
 
   } catch (error: any) {
@@ -361,23 +414,23 @@ async function main() {
     console.log(`📊 Found ${employeeCount} employees in database`);
     
     // Only create test data if database is empty
-    if (employeeCount === 0) {
-      console.log("📝 Creating test employee...");
-      const testEmployee = await prisma.employee.create({
-        data: {
-          name: 'Test Employee',
-          username: 'testuser',
-          email: 'test@example.com',
-          password: 'password123',
-          role: 'employee',
-          department: 'IT',
-          photo: 'default.jpg',
-          fingerprint: 'test_fingerprint',
-          status: 'CHECK_OUT'
-        }
-      });
-      console.log("✅ Test employee created:", testEmployee.id);
-    }
+    // if (employeeCount === 0) {
+    //   console.log("📝 Creating test employee...");
+    //   const testEmployee = await prisma.employee.create({
+    //     data: {
+    //       name: 'Test Employee',
+    //       username: 'testuser',
+    //       email: 'test@example.com',
+    //       password: 'password123',
+    //       role: 'employee',
+    //       department: 'IT',
+    //       photo: 'default.jpg',
+    //       fingerprint: 'test_fingerprint',
+    //       status: 'CHECK_OUT'
+    //     }
+    //   });
+    //   console.log("✅ Test employee created:", testEmployee.id);
+    // }
     
   } catch (error) {
     console.error("❌ Database connection failed:");

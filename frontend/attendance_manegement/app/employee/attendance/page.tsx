@@ -45,19 +45,25 @@ const AttendancePage = () => {
         return;
       }
 
+      console.log("Frontend: Fetching today's attendance status");
+
       const res = await fetch("http://localhost:5000/attendance/today", {
         headers: {
           Authorization: `Bearer ${token}`,
         },
       });
 
+      console.log("Frontend: Today status response:", res.status);
+
       if (!res.ok) {
         throw new Error("Failed to fetch attendance status");
       }
 
       const data = await res.json();
+      console.log("Frontend: Today status data:", data);
       setStatus(data);
     } catch (error: any) {
+      console.error("Frontend: Error fetching today status:", error);
       setError(error.message);
     } finally {
       setLoading(false);
@@ -144,6 +150,9 @@ const AttendancePage = () => {
     setSuccess("");
 
     try {
+      console.log("Frontend: Starting check-out process");
+      console.log("Frontend: Current status:", status);
+
       // Simulate biometric scanning
       await simulateBiometricScan();
 
@@ -151,6 +160,8 @@ const AttendancePage = () => {
       if (!token) {
         throw new Error("Please login first");
       }
+
+      console.log("Frontend: Making check-out request");
 
       const res = await fetch("http://localhost:5000/attendance/checkout", {
         method: "POST",
@@ -160,12 +171,15 @@ const AttendancePage = () => {
         },
       });
 
+      console.log("Frontend: Response status:", res.status);
       const data = await res.json();
+      console.log("Frontend: Response data:", data);
 
       if (!res.ok) {
         throw new Error(data.error || "Failed to check out");
       }
 
+      console.log("Frontend: Check-out successful, updating status");
       setSuccess(`Check-out successful at ${formatTime(data.checkOutTime)}`);
       setStatus({
         attendance: data.attendance,
@@ -174,6 +188,7 @@ const AttendancePage = () => {
         checkOutTime: data.checkOutTime,
       });
     } catch (error: any) {
+      console.error("Frontend: Check-out error:", error);
       setError(error.message);
     } finally {
       setActionLoading(false);

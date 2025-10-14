@@ -11,6 +11,7 @@ import { Loader2, Pencil, Trash2, UserPlus } from "lucide-react";
 type Employee = {
   id: string;
   name?: string;
+  employeeId?: string;
   username?: string;
   email?: string;
   password?: string;
@@ -74,20 +75,22 @@ function PageComponent({
                   {e.department || "-"}
                 </p>
                 <p>
-                  <span className="font-medium">Status:</span>{" "}
+                  <span className="font-bold">Status:</span>{" "}
                   <span
                     className={
-                      e.status === "ON_DUTY"
+                      e.status === "CHECK_IN"
                         ? "text-green-600 font-medium"
-                        : e.status === "OFF_DUTY"
+                        : e.status === "CHECK_OUT"
                         ? "text-red-600 font-medium"
                         : "text-slate-500"
                     }
                   >
-                    {e.status ?? "OFF_DUTY"}
+                    {e.status ?? "CHECK_OUT"}
                   </span>
                 </p>
-                <p className="text-xs text-slate-400">ID: {e.id}</p>
+                <p className="text-sm font-medium  text-slate-700">
+                  Employee ID: {e.employeeId}
+                </p>
               </div>
 
               {/* Actions */}
@@ -150,7 +153,15 @@ export default function Page() {
         if (!res.ok) throw new Error("Failed to load employees");
         const data = await res.json();
         const list = Array.isArray(data) ? data : data?.employees ?? [];
-        if (mounted) setEmployees(list);
+        // Prepend backend URL to photo paths for proper image display
+        const updatedList = list.map((emp: Employee) => ({
+          ...emp,
+          photo:
+            emp.photo && emp.photo.startsWith("/uploads/")
+              ? `http://localhost:5000${emp.photo}`
+              : emp.photo,
+        }));
+        if (mounted) setEmployees(updatedList);
       } catch (err: any) {
         if (mounted) setError(err.message || "Unknown error");
       } finally {
