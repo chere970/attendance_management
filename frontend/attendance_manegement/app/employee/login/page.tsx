@@ -17,6 +17,7 @@ const LoginPage = () => {
   const router = useRouter();
   const [formData, setFormData] = useState({
     email: "",
+    employeeId: "",
     password: "",
   });
   const [loading, setLoading] = useState(false);
@@ -122,6 +123,24 @@ const LoginPage = () => {
                     type="email"
                     placeholder="Enter your email"
                     value={formData.email}
+                    onChange={handleInputChange}
+                    required
+                    className="mt-1"
+                  />
+                </div>
+
+                <div>
+                  <Label
+                    htmlFor="email"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Employee ID
+                  </Label>
+                  <Input
+                    id="employeeId"
+                    type="text"
+                    placeholder="Enter your email"
+                    value={formData.employeeId}
                     onChange={handleInputChange}
                     required
                     className="mt-1"

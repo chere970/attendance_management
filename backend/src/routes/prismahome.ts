@@ -2,9 +2,17 @@ import express, { Request, Response } from 'express'
 import { PrismaClient } from '../../generated/prisma'
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import multer from 'multer';
+
+declare module 'express' {
+  interface Request {
+    file?: any;
+  }
+}
 
 const router = express.Router()
 const prisma = new PrismaClient()
+const upload = multer({ dest: 'uploads/' }); // Configure multer for file uploads
 
 router.get('/', async (req: Request, res: Response) => {
   try {
@@ -76,7 +84,10 @@ router.get('/:id', async (req: Request, res: Response) => {
   }
 }
 );
-router.patch('/:id', async (req: Request, res: Response) => {
+// Handle photo uploads for PATCH
+const uploadPhoto = upload.single('photo');
+
+router.patch('/:id', uploadPhoto, async (req: Request, res: Response) => {
   // Skip favicon.ico and other non-ObjectId requests
   if (req.params.id === 'favicon.ico' || !/^[0-9a-fA-F]{24}$/.test(req.params.id)) {
     return res.status(404).json({ error: "Invalid employee ID" });
@@ -84,7 +95,16 @@ router.patch('/:id', async (req: Request, res: Response) => {
 
   const allowed = ['name', 'username', 'email', 'role', 'department', 'photo', 'fingerprint', 'password'];
   const data: Record<string, any> = {};
-  for (const k of allowed) if (k in req.body) data[k] = req.body[k];
+
+  // Handle form data (for photo uploads)
+  for (const k of allowed) {
+    if (k in req.body) data[k] = req.body[k];
+  }
+
+  // Handle file upload for photo
+  if (req.file) {
+    data.photo = `/uploads/${req.file.filename}`;
+  }
 
   if (!Object.keys(data).length) return res.status(400).json({ error: "No valid fields to update" });
 
@@ -141,8 +161,21 @@ router.get("/:id/recent-attendance", async (req: Request, res: Response) => {
   }
 });
 
+// Get all attendance records
+router.get("/attendance/all", async (req: Request, res: Response) => {
+  try {
+    const attendanceRecords = await prisma.attendance.findMany({
+      orderBy: { checkIn: "desc" },
+    });
+    res.json(attendanceRecords);
+  } catch (err: any) {
+    console.error("GET /prisma/attendance/all error:", err);
+    res.status(500).json({ error: err?.message || "Failed to fetch attendance records" });
+  }
+});
+
 router.post("/", async (req: Request, res: Response) => {
-const allowed=['name','username','email','role','department','photo','fingerprint','password'];
+const allowed=['name','employeeId','username','email','role','department','photo','fingerprint','password'];
 const data:Record<string,any>={};
 for(const k of allowed) if(k in req.body) data[k]=req.body[k];
 if(!data.username || !data.email || !data.password || !data.role || !data.department || !data.photo || !data.fingerprint){
@@ -167,12 +200,15 @@ try{
 
 });
 
+//multer 
+
+
 // Login endpoint
 router.post("/login", async (req: Request, res: Response) => {
   try {
-    const { email, password } = req.body;
+    const { email,employeeId, password } = req.body;
 
-    if (!email || !password) {
+    if (!email || !employeeId || !password) {
       return res.status(400).json({ error: "Email and password are required" });
     }
 
@@ -221,71 +257,76 @@ router.post("/login", async (req: Request, res: Response) => {
 });
 
 // Signup endpoint
-router.post("/signup", async (req: Request, res: Response) => {
-  try {
-    const { name, username, email, password, role = 'employee', department, photo, fingerprint } = req.body;
+// 
+router.post(
+  "/signup",
+  upload.single("photo"),
+  async (req: Request, res: Response) => {
+    try {
+      const { name, employeeId, username, email, password, role = "employee", department } =
+        req.body;
 
-    if (!name || !username || !email || !password || !department || !photo || !fingerprint) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    // Check if user already exists
-    const existingUser = await prisma.employee.findUnique({
-      where: { email }
-    });
-
-    if (existingUser) {
-      return res.status(400).json({ error: "User already exists" });
-    }
-
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Create user
-    const user = await prisma.employee.create({
-      data: {
-        name,
-        username,
-        email,
-        password: hashedPassword,
-        role,
-        department,
-        photo,
-        fingerprint,
-        status: 'CHECK_OUT'
+      if (!name || !employeeId || !username || !email || !password || !department) {
+        return res.status(400).json({ error: "Missing required fields" });
       }
-    });
 
-    // Create JWT token
-    const token = jwt.sign(
-      {
-        userId: user.id,
-        email: user.email,
-        role: user.role
-      },
-      process.env.JWT_SECRET || 'your-secret-key',
-      { expiresIn: '24h' }
-    );
-
-    res.status(201).json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        department: user.department
+      // Check if user already exists
+      const existingUser = await prisma.employee.findUnique({
+        where: { email },
+      });
+      if (existingUser) {
+        return res.status(400).json({ error: "User already exists" });
       }
-    });
 
-  } catch (err: any) {
-    console.error("POST /prisma/signup error:", err);
-    if (err?.code === "P2002") {
-      return res.status(400).json({ error: "Email already exists" });
+      // Hash password
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // Save photo URL if uploaded
+      const photo = req.file ? `/uploads/${req.file.filename}` : null;
+
+      // Create user
+      const user = await prisma.employee.create({
+        data: {
+          name,
+          employeeId,
+          username,
+          email,
+          password: hashedPassword,
+          role,
+          department,
+          photo: photo || "default_photo",
+          fingerprint: "default_fingerprint", // placeholder until real one
+          status: "CHECK_OUT",
+        },
+      });
+
+      // Create JWT
+      const token = jwt.sign(
+        { userId: user.id, email: user.email, role: user.role },
+        process.env.JWT_SECRET || "your-secret-key",
+        { expiresIn: "24h" }
+      );
+
+      res.status(201).json({
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          department: user.department,
+          photo: user.photo,
+        },
+      });
+    } catch (err: any) {
+      console.error("POST /prisma/signup error:", err);
+      res.status(500).json({ error: "Signup failed" });
     }
-    res.status(500).json({ error: "Signup failed" });
   }
-});
+);
+
+// serve photo files
+router.use("/uploads", express.static("uploads"));
 
 
 export default router

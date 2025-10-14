@@ -1,4 +1,5 @@
 "use client";
+
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,13 +22,14 @@ export function SignupForm({
   const [formData, setFormData] = useState({
     name: "",
     username: "",
+    employeeId: "",
     email: "",
     password: "",
     role: "employee",
     department: "",
-    photo: "default.jpg",
-    fingerprint: "default_fingerprint",
   });
+  const [photo, setPhoto] = useState<File | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -41,18 +43,27 @@ export function SignupForm({
     }));
   };
 
+  const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      setPhoto(e.target.files[0]);
+    }
+  };
+
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setError("");
 
     try {
+      const form = new FormData();
+      Object.entries(formData).forEach(([key, value]) => {
+        form.append(key, value);
+      });
+      if (photo) form.append("photo", photo);
+
       const res = await fetch("http://localhost:5000/prisma/signup", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
+        body: form, // ✅ send FormData (not JSON)
       });
 
       const data = await res.json();
@@ -61,11 +72,11 @@ export function SignupForm({
         throw new Error(data.error || "Signup failed");
       }
 
-      // Store token and user data
+      // store token & user
       localStorage.setItem("token", data.token);
       localStorage.setItem("user", JSON.stringify(data.user));
 
-      // Redirect based on role
+      // redirect
       if (data.user.role === "admin") {
         router.push("/admin/dashboard");
       } else {
@@ -86,7 +97,7 @@ export function SignupForm({
           <CardDescription>Sign up for a new account</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSignup}>
+          <form onSubmit={handleSignup} encType="multipart/form-data">
             <div className="grid gap-6">
               {error && (
                 <div className="p-3 text-sm text-red-600 bg-red-50 border border-red-200 rounded-md">
@@ -102,7 +113,6 @@ export function SignupForm({
                     type="text"
                     value={formData.name}
                     onChange={handleInputChange}
-                    placeholder="Your full name"
                     required
                   />
                 </div>
@@ -114,7 +124,17 @@ export function SignupForm({
                     type="text"
                     value={formData.username}
                     onChange={handleInputChange}
-                    placeholder="Choose a username"
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-3">
+                  <Label htmlFor="employeeId">Employee ID</Label>
+                  <Input
+                    id="employeeId"
+                    type="text"
+                    value={formData.employeeId}
+                    onChange={handleInputChange}
                     required
                   />
                 </div>
@@ -126,7 +146,6 @@ export function SignupForm({
                     type="email"
                     value={formData.email}
                     onChange={handleInputChange}
-                    placeholder="m@example.com"
                     required
                   />
                 </div>
@@ -137,7 +156,7 @@ export function SignupForm({
                     id="role"
                     value={formData.role}
                     onChange={handleInputChange}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
                     required
                   >
                     <option value="employee">EMPLOYEE</option>
@@ -152,7 +171,6 @@ export function SignupForm({
                     type="text"
                     value={formData.department}
                     onChange={handleInputChange}
-                    placeholder="Your department"
                     required
                   />
                 </div>
@@ -164,8 +182,18 @@ export function SignupForm({
                     type="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    placeholder="Create a password"
                     required
+                  />
+                </div>
+
+                {/* ✅ Photo upload */}
+                <div className="grid gap-3">
+                  <Label htmlFor="photo">Profile Photo</Label>
+                  <Input
+                    id="photo"
+                    type="file"
+                    accept="image/*"
+                    onChange={handlePhotoChange}
                   />
                 </div>
 

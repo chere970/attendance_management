@@ -51,7 +51,7 @@ export const Nav = () => {
           >
             <button
               type="button"
-              className="inline-flex justify-center w-full rounded-md border border-gray-300 shadow-sm px-4 py-2 bg-white text-lg font-semibold text-gray-700 hover:text-purple-600 hover:text-xl transition-colors focus:outline-none"
+              className="inline-flex justify-center w-full rounded-md border  shadow-sm px-4 py-2 text-lg font-semibold text-gray-700 hover:text-purple-600 hover:text-xl transition-colors focus:outline-none"
               aria-expanded={isOpen}
               aria-haspopup="true"
             >

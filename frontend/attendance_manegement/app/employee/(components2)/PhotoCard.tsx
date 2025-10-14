@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 interface EmployeeProfile {
   id: string;
   name: string;
+  employeeId: string;
   username: string;
   email: string;
   role: string;
@@ -66,6 +67,10 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
       }
 
       const userData = await response.json();
+      // Prepend backend URL to photo path for proper image display
+      if (userData.photo && userData.photo.startsWith("/uploads/")) {
+        userData.photo = `http://localhost:5000${userData.photo}`;
+      }
       setEmployee(userData);
     } catch (err: any) {
       console.error("Failed to load employee profile:", err);
@@ -202,7 +207,7 @@ const PhotoCard: React.FC<PhotoCardProps> = ({
                 {employee.department}
               </p>
               <p className="text-xs text-gray-500 font-mono">
-                ID: {employee.id.slice(-8).toUpperCase()}
+                ID: {employee.employeeId.slice(-8).toUpperCase()}
               </p>
             </div>
           </div>

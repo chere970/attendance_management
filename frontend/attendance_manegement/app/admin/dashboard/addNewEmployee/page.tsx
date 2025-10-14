@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 
 type EmployeeForm = {
   name?: string;
+  employeeId: string;
   username: string;
   email: string;
   password: string;
@@ -18,6 +19,7 @@ export default function AddNewEmployeePage() {
   const router = useRouter();
   const [form, setForm] = useState<EmployeeForm>({
     name: "",
+    employeeId: "",
     username: "",
     email: "",
     password: "",
@@ -37,6 +39,7 @@ export default function AddNewEmployeePage() {
     try {
       if (
         !form.username ||
+        !form.employeeId ||
         !form.email ||
         !form.password ||
         !form.role ||
@@ -84,6 +87,17 @@ export default function AddNewEmployeePage() {
           </div>
           <div>
             <label className="block font-medium text-gray-700 mb-1">
+              Employee ID <span className="text-red-500">*</span>
+            </label>
+            <input
+              className="w-full rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-4 py-3 transition-all shadow-sm outline-none"
+              value={form.employeeId}
+              onChange={(e) => setForm({ ...form, employeeId: e.target.value })}
+              placeholder="employee ID"
+            />
+          </div>
+          <div>
+            <label className="block font-medium text-gray-700 mb-1">
               Username <span className="text-red-500">*</span>
             </label>
             <input
@@ -117,7 +131,7 @@ export default function AddNewEmployeePage() {
               placeholder="Password"
             />
           </div>
-          <div>
+          {/* <div>
             <label className="block font-medium text-gray-700 mb-1">
               Role <span className="text-red-500">*</span>
             </label>
@@ -127,7 +141,31 @@ export default function AddNewEmployeePage() {
               onChange={(e) => setForm({ ...form, role: e.target.value })}
               placeholder="Role"
             />
+          </div> */}
+
+          <div>
+            <label className="block font-medium text-gray-700 mb-1">
+              Role <span className="text-red-500">*</span>
+            </label>
+            {/* <input
+              className="w-full rounded-lg border border-gray-300 focus:border-blue-500 focus:ring focus:ring-blue-100 px-4 py-3 transition-all shadow-sm outline-none"
+              value={form.role}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              placeholder="Role"
+            /> */}
+            <select
+              id="role"
+              value={form.role}
+              // onChange={handleInputChange}
+              onChange={(e) => setForm({ ...form, role: e.target.value })}
+              className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+              required
+            >
+              <option value="employee">EMPLOYEE</option>
+              <option value="admin">ADMIN</option>
+            </select>
           </div>
+
           <div>
             <label className="block font-medium text-gray-700 mb-1">
               Department <span className="text-red-500">*</span>
