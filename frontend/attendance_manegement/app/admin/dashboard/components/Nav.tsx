@@ -38,6 +38,12 @@ export const Nav = () => {
           >
             Request
           </Link>
+          <Link
+            className="text-lg font-semibold text-gray-700 hover:text-purple-600  hover:text-xl transition-colors"
+            href="/admin/dashboard/performance"
+          >
+            performance
+          </Link>
         </div>
         <div className="flex item-center">
           {/* <div className="flex px-3 py-1 text-lg  rounded-2xl bg-purple-600">
