@@ -132,9 +132,10 @@ app.get("/requests/my-requests", verifyToken, async (req: Request, res: Response
 // Get all requests (for admin)
 app.get("/requests", verifyToken, async (req: Request, res: Response) => {
   try {
-    // Check if user is admin
+    // Check if user is admin (case-insensitive)
     const authReq = req as AuthenticatedRequest;
-    if (authReq.user?.role !== 'admin' && authReq.user?.role !== 'Admin') {
+    const role = (authReq.user?.role || '').toString().toLowerCase();
+    if (role !== 'admin') {
       return res.status(403).json({ error: "Access denied" });
     }
     
@@ -162,9 +163,10 @@ app.get("/requests", verifyToken, async (req: Request, res: Response) => {
 // Update request status (admin only)
 app.patch("/requests/:id", verifyToken, async (req: Request, res: Response) => {
   try {
-    // Check if user is admin
+    // Check if user is admin (case-insensitive)
     const authReq = req as AuthenticatedRequest;
-    if (authReq.user?.role !== 'admin' && authReq.user?.role !== 'Admin') {
+    const role = (authReq.user?.role || '').toString().toLowerCase();
+    if (role !== 'admin') {
       return res.status(403).json({ error: "Access denied" });
     }
     
