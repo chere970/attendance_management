@@ -32,6 +32,6 @@
     "nodemon": "^3.1.10",
     "ts-node-dev": "^2.0.0",
     "typescript": "^5.9.2",
-    "prisma": "^0.0.0"
+    "prisma": "^5.15.0"
   }
 }
