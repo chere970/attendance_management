@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 type Employee = {
   id: string;
   name?: string;
@@ -64,7 +65,7 @@ export default function EditEmployeePage() {
     let mounted = true;
     (async () => {
       try {
-        const url = `http://localhost:5000/prisma/${encodeURIComponent(id)}`;
+        const url = `${API_URL}/prisma/${encodeURIComponent(id)}`;
         const res = await fetch(url, { cache: "no-store" });
         if (!res.ok)
           throw new Error(`Failed to fetch employee (${res.status})`);
@@ -90,14 +91,11 @@ export default function EditEmployeePage() {
     setSaving(true);
     setError(null);
     try {
-      const res = await fetch(
-        `http://localhost:5000/prisma/${encodeURIComponent(id)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(employee),
-        }
-      );
+      const res = await fetch(`${API_URL}/prisma/${encodeURIComponent(id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(employee),
+      });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         throw new Error(b?.error || `Save failed (${res.status})`);

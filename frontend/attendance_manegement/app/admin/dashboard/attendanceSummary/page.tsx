@@ -14,6 +14,8 @@ import {
   Legend,
 } from "chart.js";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -51,7 +53,7 @@ const AttendanceSummaryPage = () => {
         return;
       }
 
-      const res = await fetch("http://localhost:5000/prisma/summary", {
+      const res = await fetch(`${API_URL}/prisma/summarys`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },

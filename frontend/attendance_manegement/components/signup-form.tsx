@@ -14,6 +14,9 @@ import { Label } from "@/components/ui/label";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 export function SignupForm({
   className,
   ...props
@@ -62,7 +65,8 @@ export function SignupForm({
       if (photo) form.append("photo", photo);
 
       const res = await fetch(
-        "https://attendance-management-ynfm.onrender.com/prisma/signup",
+        // "https://attendance-management-ynfm.onrender.com/prisma/signup",
+        `${API_URL}/prisma/signup`,
         {
           method: "POST",
           body: form, // ✅ send FormData (not JSON)

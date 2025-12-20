@@ -2,6 +2,7 @@
 import React, { useState } from "react";
 import { useRouter } from "next/navigation";
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 type EmployeeForm = {
   name?: string;
   employeeId: string;
@@ -50,7 +51,8 @@ export default function AddNewEmployeePage() {
         throw new Error("Please fill required fields");
       }
 
-      const res = await fetch("http://localhost:5000/prisma", {
+      // const res = await fetch("http://localhost:5000/prisma", {
+      const res = await fetch(`${API_URL}/prisma`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),

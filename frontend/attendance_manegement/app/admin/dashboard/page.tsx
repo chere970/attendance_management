@@ -6,6 +6,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Loader2, Pencil, Trash2, UserPlus } from "lucide-react";
 
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 // Types
 
 type Employee = {
@@ -147,7 +149,8 @@ export default function Page() {
     let mounted = true;
     async function fetchEmployees() {
       try {
-        const res = await fetch("http://localhost:5000/prisma", {
+        // const res = await fetch("http://localhost:5000/prisma", {
+        const res = await fetch(`${API_URL}/prisma`, {
           cache: "no-store",
         });
         if (!res.ok) throw new Error("Failed to load employees");
@@ -183,12 +186,9 @@ export default function Page() {
     setDeletingId(id);
     setError(null);
     try {
-      const res = await fetch(
-        `http://localhost:5000/prisma/${encodeURIComponent(id)}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const res = await fetch(`${API_URL}/prisma/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
       if (!res.ok) {
         const b = await res.json().catch(() => ({}));
         throw new Error(b?.error || `Delete failed (${res.status})`);

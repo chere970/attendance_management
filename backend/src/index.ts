@@ -27,9 +27,9 @@ const prisma = new PrismaClient({
 
 app.use(cors({
   origin: [
-    // "http://localhost:3000",
-    "https://attendance-management.vercel.app",
-    "https://attendance-management-2y8y.vercel.app"
+    process.env.FRONTEND_URL || "http://localhost:3000",
+    
+    
   ],
   credentials: true
 }));
