@@ -29,10 +29,12 @@ app.use(cors({
   origin: [
     // "http://localhost:3000",
     "https://attendance-management.vercel.app",
-    "https://attendance-management-2y8y.vercel.app/"
+    "https://attendance-management-2y8y.vercel.app"
   ],
   credentials: true
 }));
+
+
 
 
 app.use(express.json());
