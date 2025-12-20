@@ -39,13 +39,17 @@ export function LoginForm({
     setError("");
 
     try {
-      const res = await fetch("http://localhost:5000/prisma/login", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData),
-      });
+      // const res = await fetch("http://localhost:5000/prisma/login", {
+      const res = await fetch(
+        "https://attendance-management-ynfm.onrender.com/prisma/login",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(formData),
+        }
+      );
 
       const data = await res.json();
 
@@ -63,7 +67,6 @@ export function LoginForm({
       } else {
         router.push("/employee/dashboard");
       }
-
     } catch (error: any) {
       setError(error.message);
     } finally {
@@ -76,9 +79,7 @@ export function LoginForm({
       <Card>
         <CardHeader className="text-center">
           <CardTitle className="text-xl">Welcome back</CardTitle>
-          <CardDescription>
-            Sign in to your account
-          </CardDescription>
+          <CardDescription>Sign in to your account</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleLogin}>
@@ -88,7 +89,7 @@ export function LoginForm({
                   {error}
                 </div>
               )}
-              
+
               <div className="grid gap-6">
                 <div className="grid gap-3">
                   <Label htmlFor="email">Email</Label>
@@ -111,25 +112,24 @@ export function LoginForm({
                       Forgot your password?
                     </a>
                   </div>
-                  <Input 
-                    id="password" 
-                    type="password" 
+                  <Input
+                    id="password"
+                    type="password"
                     value={formData.password}
                     onChange={handleInputChange}
-                    required 
+                    required
                   />
                 </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={loading}
-                >
+                <Button type="submit" className="w-full" disabled={loading}>
                   {loading ? "Signing in..." : "Sign In"}
                 </Button>
               </div>
               <div className="text-center text-sm">
                 Don&apos;t have an account?{" "}
-                <a href="/employee/signup" className="underline underline-offset-4">
+                <a
+                  href="/employee/signup"
+                  className="underline underline-offset-4"
+                >
                   Sign up
                 </a>
               </div>

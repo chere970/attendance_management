@@ -18,10 +18,22 @@ const prisma = new PrismaClient({
 })
 
 // app.use(cors())
+// app.use(cors({
+//   // origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+//   origin: process.env.FRONTEND_URL || 'https://attendance-management-ynfm.onrender.com/',
+
+//   credentials: true
+// }))
+
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+  origin: [
+    "http://localhost:3000",
+    "https://attendance-management.vercel.app"
+  ],
   credentials: true
-}))
+}));
+
+
 app.use(express.json());
 
 interface AuthenticatedRequest extends Request {

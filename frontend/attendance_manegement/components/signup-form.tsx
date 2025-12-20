@@ -61,10 +61,13 @@ export function SignupForm({
       });
       if (photo) form.append("photo", photo);
 
-      const res = await fetch("http://localhost:5000/prisma/signup", {
-        method: "POST",
-        body: form, // ✅ send FormData (not JSON)
-      });
+      const res = await fetch(
+        "https://attendance-management-ynfm.onrender.com/prisma/signup",
+        {
+          method: "POST",
+          body: form, // ✅ send FormData (not JSON)
+        }
+      );
 
       const data = await res.json();
 
