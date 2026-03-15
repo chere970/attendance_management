@@ -1,4 +1,16 @@
-node_modules
+/node_modules
+/dist
+/build
+/.next
+/.cache
+/.vscode
+/.idea
+.DS_Store
+/logs
+*.log
+*.env
+*.local
+
 # Keep environment variables out of version control
 .env
 
