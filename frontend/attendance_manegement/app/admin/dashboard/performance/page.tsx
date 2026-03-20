@@ -1,11 +1,13 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Users, Calendar, TrendingUp } from "lucide-react";
-import { format, differenceInHours, differenceInMinutes } from "date-fns";
+import { Clock, Users, Calendar, TrendingUp, RefreshCw } from "lucide-react";
+import { format, differenceInMinutes } from "date-fns";
 import { parseISO } from "date-fns/parseISO";
+import { apiFetch } from "@/lib/api";
+import { Button } from "@/components/ui/button";
 
 interface AttendanceRecord {
   id: string;
@@ -21,13 +23,18 @@ interface Employee {
   username: string;
   email: string;
   department: string;
+  status?: string | null;
 }
 
 interface WorkingHoursData {
   employee: Employee;
   totalHours: number;
   totalMinutes: number;
-  attendanceRecords: AttendanceRecord[];
+  attendanceRecords: (AttendanceRecord & {
+    workingHours: number;
+    workingMinutes: number;
+    totalMinutes: number;
+  })[];
   monthlyBreakdown: {
     month: string;
     year: number;
@@ -40,134 +47,146 @@ interface WorkingHoursData {
 const WorkingHoursPage = () => {
   const [data, setData] = useState<WorkingHoursData[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
 
-  useEffect(() => {
-    fetchWorkingHours();
-  }, [selectedMonth, selectedYear]);
-
-  const fetchWorkingHours = async () => {
+  const fetchWorkingHours = async (showRefreshing = false) => {
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        setError("Authentication required");
-        return;
+      setError(null);
+      if (showRefreshing) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
       }
 
-      // Fetch employees and their attendance records
-      const [employeesRes, attendanceRes] = await Promise.all([
-        fetch("http://localhost:5000/prisma", {
-          headers: { Authorization: `Bearer ${token}` },
+      const [employees, attendanceRecords] = await Promise.all([
+        apiFetch<Employee[]>("/prisma", {
+          method: "GET",
+          cache: "no-store",
         }),
-        fetch("http://localhost:5000/prisma/attendance/all", {
-          headers: { Authorization: `Bearer ${token}` },
+        apiFetch<AttendanceRecord[]>("/prisma/attendance/all", {
+          method: "GET",
+          cache: "no-store",
         }),
       ]);
 
-      if (!employeesRes.ok || !attendanceRes.ok) {
-        throw new Error("Failed to fetch data");
-      }
-
-      const employees: Employee[] = await employeesRes.json();
-      const attendanceRecords: AttendanceRecord[] = await attendanceRes.json();
-
-      // Process the data
       const processedData = processWorkingHoursData(
-        employees,
-        attendanceRecords
+        Array.isArray(employees) ? employees : [],
+        Array.isArray(attendanceRecords) ? attendanceRecords : [],
       );
+
       setData(processedData);
-    } catch (err: any) {
-      setError(err.message || "Failed to load working hours");
+    } catch (err) {
+      setError(
+        err instanceof Error ? err.message : "Failed to load working hours",
+      );
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  useEffect(() => {
+    void fetchWorkingHours();
+  }, []);
+
   const processWorkingHoursData = (
     employees: Employee[],
-    attendanceRecords: AttendanceRecord[]
+    attendanceRecords: AttendanceRecord[],
   ): WorkingHoursData[] => {
     return employees.map((employee) => {
-      // Filter attendance records for this employee
       const employeeAttendance = attendanceRecords.filter(
-        (record) => record.employeeId === employee.id && record.checkOut
+        (record) => record.employeeId === employee.id && !!record.checkOut,
       );
 
-      // Calculate working hours for each record
       const recordsWithHours = employeeAttendance.map((record) => {
         const checkIn = parseISO(record.checkIn);
         const checkOut = parseISO(record.checkOut!);
-        const hours = differenceInHours(checkOut, checkIn);
-        const minutes = differenceInMinutes(checkOut, checkIn) % 60;
+        const totalMinutes = Math.max(
+          differenceInMinutes(checkOut, checkIn),
+          0,
+        );
+        const hours = Math.floor(totalMinutes / 60);
+        const minutes = totalMinutes % 60;
 
         return {
           ...record,
           workingHours: hours,
           workingMinutes: minutes,
-          totalMinutes: hours * 60 + minutes,
+          totalMinutes,
         };
       });
 
-      // Group by month and calculate monthly totals
-      const monthlyBreakdown = recordsWithHours.reduce((acc, record) => {
-        const date = parseISO(record.date);
-        const monthKey = `${date.getFullYear()}-${String(
-          date.getMonth() + 1
-        ).padStart(2, "0")}`;
+      const monthlyBreakdownMap = recordsWithHours.reduce(
+        (acc, record) => {
+          const date = parseISO(record.date);
+          const monthKey = `${date.getFullYear()}-${String(
+            date.getMonth() + 1,
+          ).padStart(2, "0")}`;
 
-        if (!acc[monthKey]) {
-          acc[monthKey] = {
-            month: format(date, "MMMM"),
-            year: date.getFullYear(),
-            hours: 0,
-            minutes: 0,
-            daysWorked: 0,
-          };
-        }
+          if (!acc[monthKey]) {
+            acc[monthKey] = {
+              month: format(date, "MMMM"),
+              year: date.getFullYear(),
+              hours: 0,
+              minutes: 0,
+              daysWorked: 0,
+            };
+          }
 
-        acc[monthKey].hours += record.workingHours;
-        acc[monthKey].minutes += record.workingMinutes;
-        acc[monthKey].daysWorked += 1;
+          acc[monthKey].hours += record.workingHours;
+          acc[monthKey].minutes += record.workingMinutes;
+          acc[monthKey].daysWorked += 1;
 
-        return acc;
-      }, {} as Record<string, any>);
+          if (acc[monthKey].minutes >= 60) {
+            acc[monthKey].hours += Math.floor(acc[monthKey].minutes / 60);
+            acc[monthKey].minutes = acc[monthKey].minutes % 60;
+          }
 
-      // Calculate total hours and minutes
+          return acc;
+        },
+        {} as Record<
+          string,
+          {
+            month: string;
+            year: number;
+            hours: number;
+            minutes: number;
+            daysWorked: number;
+          }
+        >,
+      );
+
       const totalMinutes = recordsWithHours.reduce(
         (sum, record) => sum + record.totalMinutes,
-        0
+        0,
       );
-      const totalHours = Math.floor(totalMinutes / 60);
-      const remainingMinutes = totalMinutes % 60;
 
       return {
         employee,
-        totalHours,
-        totalMinutes: remainingMinutes,
+        totalHours: Math.floor(totalMinutes / 60),
+        totalMinutes: totalMinutes % 60,
         attendanceRecords: recordsWithHours,
-        monthlyBreakdown: Object.values(monthlyBreakdown),
+        monthlyBreakdown: Object.values(monthlyBreakdownMap),
       };
     });
   };
 
-  const formatWorkingHours = (hours: number, minutes: number) => {
-    return `${hours}h ${minutes}m`;
-  };
-
-  const getCurrentMonthData = () => {
+  const currentMonthData = useMemo(() => {
     const currentMonthKey = `${selectedYear}-${String(
-      selectedMonth + 1
+      selectedMonth + 1,
     ).padStart(2, "0")}`;
+
     return data.map((item) => {
-      const monthData = item.monthlyBreakdown.find(
-        (month) =>
-          `${month.year}-${String(
-            new Date(`${month.month} 1, ${month.year}`).getMonth() + 1
-          ).padStart(2, "0")}` === currentMonthKey
-      );
+      const monthData = item.monthlyBreakdown.find((month) => {
+        const monthIndex = new Date(
+          `${month.month} 1, ${month.year}`,
+        ).getMonth();
+        const key = `${month.year}-${String(monthIndex + 1).padStart(2, "0")}`;
+        return key === currentMonthKey;
+      });
 
       return {
         ...item,
@@ -176,13 +195,36 @@ const WorkingHoursPage = () => {
         currentMonthDays: monthData?.daysWorked || 0,
       };
     });
+  }, [data, selectedMonth, selectedYear]);
+
+  const totalEmployees = data.length;
+  const totalWorkingMinutesThisMonth = currentMonthData.reduce(
+    (sum, item) => sum + item.currentMonthHours * 60 + item.currentMonthMinutes,
+    0,
+  );
+  const averageMinutesPerEmployee =
+    totalEmployees > 0
+      ? Math.round(totalWorkingMinutesThisMonth / totalEmployees)
+      : 0;
+
+  const formatWorkingHours = (hours: number, minutes: number) =>
+    `${hours}h ${minutes}m`;
+
+  const getEmployeeStatusBadge = (status?: string | null) => {
+    const normalized = (status || "").toUpperCase();
+
+    if (normalized === "CHECK_IN") {
+      return <Badge className="bg-green-100 text-green-800">Checked In</Badge>;
+    }
+
+    return <Badge className="bg-slate-100 text-slate-700">Checked Out</Badge>;
   };
 
   if (loading) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex justify-center items-center min-h-[400px]">
-          <div className="text-lg">Loading working hours...</div>
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="text-lg text-slate-600">Loading working hours...</div>
         </div>
       </div>
     );
@@ -191,45 +233,58 @@ const WorkingHoursPage = () => {
   if (error) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex justify-center items-center min-h-[400px]">
+        <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
-            <div className="text-red-600 text-lg mb-2">
+            <div className="mb-2 text-lg text-red-600">
               Error loading working hours
             </div>
             <div className="text-gray-600">{error}</div>
+            <Button
+              variant="outline"
+              className="mt-4"
+              onClick={() => void fetchWorkingHours()}
+            >
+              Try Again
+            </Button>
           </div>
         </div>
       </div>
     );
   }
 
-  const currentMonthData = getCurrentMonthData();
-  const totalEmployees = data.length;
-  const totalWorkingHours = data.reduce(
-    (sum, item) => sum + item.totalHours,
-    0
-  );
-  const averageHoursPerEmployee =
-    totalEmployees > 0 ? Math.round(totalWorkingHours / totalEmployees) : 0;
-
   return (
     <div className="container mx-auto p-6">
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">
-          Employees Working Hours
-        </h1>
+      <div className="mb-6 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Employees Working Hours
+          </h1>
+          <p className="mt-2 text-gray-600">
+            Monthly working-hour overview based on attendance records
+          </p>
+        </div>
+
+        <Button
+          variant="outline"
+          onClick={() => void fetchWorkingHours(true)}
+          disabled={refreshing}
+        >
+          <RefreshCw
+            className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
+          />
+          Refresh
+        </Button>
       </div>
 
-      {/* Month/Year Selector */}
-      <div className="mb-6 flex gap-4">
+      <div className="mb-6 flex flex-col gap-4 sm:flex-row">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">
             Month
           </label>
           <select
             value={selectedMonth}
-            onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-            className="border border-gray-300 rounded-md px-3 py-2"
+            onChange={(e) => setSelectedMonth(parseInt(e.target.value, 10))}
+            className="rounded-md border border-gray-300 px-3 py-2"
           >
             {Array.from({ length: 12 }, (_, i) => (
               <option key={i} value={i}>
@@ -238,14 +293,15 @@ const WorkingHoursPage = () => {
             ))}
           </select>
         </div>
+
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label className="mb-1 block text-sm font-medium text-gray-700">
             Year
           </label>
           <select
             value={selectedYear}
-            onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-            className="border border-gray-300 rounded-md px-3 py-2"
+            onChange={(e) => setSelectedYear(parseInt(e.target.value, 10))}
+            className="rounded-md border border-gray-300 px-3 py-2"
           >
             {[2024, 2025, 2026].map((year) => (
               <option key={year} value={year}>
@@ -256,8 +312,7 @@ const WorkingHoursPage = () => {
         </div>
       </div>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">
@@ -279,11 +334,10 @@ const WorkingHoursPage = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              {currentMonthData.reduce(
-                (sum, item) => sum + item.currentMonthHours,
-                0
+              {formatWorkingHours(
+                Math.floor(totalWorkingMinutesThisMonth / 60),
+                totalWorkingMinutesThisMonth % 60,
               )}
-              h
             </div>
           </CardContent>
         </Card>
@@ -296,7 +350,12 @@ const WorkingHoursPage = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{averageHoursPerEmployee}h</div>
+            <div className="text-2xl font-bold">
+              {formatWorkingHours(
+                Math.floor(averageMinutesPerEmployee / 60),
+                averageMinutesPerEmployee % 60,
+              )}
+            </div>
           </CardContent>
         </Card>
 
@@ -309,14 +368,13 @@ const WorkingHoursPage = () => {
             <div className="text-2xl font-bold">
               {currentMonthData.reduce(
                 (sum, item) => sum + item.currentMonthDays,
-                0
+                0,
               )}
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Working Hours Table */}
       <Card>
         <CardHeader>
           <CardTitle>
@@ -325,85 +383,73 @@ const WorkingHoursPage = () => {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full border-collapse">
-              <thead>
-                <tr className="border-b">
-                  <th className="text-left py-3 px-4 font-semibold">
-                    Employee
-                  </th>
-                  <th className="text-left py-3 px-4 font-semibold">
-                    Department
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold">
-                    Days Worked
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold">
-                    Monthly Hours
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold">
-                    Total Hours
-                  </th>
-                  <th className="text-center py-3 px-4 font-semibold">
-                    Status
-                  </th>
-                </tr>
-              </thead>
-              <tbody>
-                {currentMonthData.map((item) => (
-                  <tr
-                    key={item.employee.id}
-                    className="border-b hover:bg-gray-50"
-                  >
-                    <td className="py-3 px-4">
-                      <div>
-                        <div className="font-medium">
-                          {item.employee.name || item.employee.username}
-                        </div>
-                        <div className="text-sm text-gray-500">
-                          {item.employee.email}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3 px-4">{item.employee.department}</td>
-                    <td className="py-3 px-4 text-center">
-                      {item.currentMonthDays}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {formatWorkingHours(
-                        item.currentMonthHours,
-                        item.currentMonthMinutes
-                      )}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      {formatWorkingHours(item.totalHours, item.totalMinutes)}
-                    </td>
-                    <td className="py-3 px-4 text-center">
-                      <Badge
-                        className={
-                          item.currentMonthHours > 160
-                            ? "bg-green-100 text-green-800 border-green-200"
-                            : item.currentMonthHours > 120
-                            ? "bg-blue-100 text-blue-800 border-blue-200"
-                            : "bg-red-100 text-red-800 border-red-200"
-                        }
-                      >
-                        {item.currentMonthHours > 160
-                          ? "Excellent"
-                          : item.currentMonthHours > 120
-                          ? "Good"
-                          : "Low"}
-                      </Badge>
-                    </td>
+          {currentMonthData.length === 0 ? (
+            <div className="py-10 text-center text-slate-500">
+              No employee data available.
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[900px] border-collapse">
+                <thead>
+                  <tr className="border-b">
+                    <th className="px-4 py-3 text-left font-semibold">
+                      Employee
+                    </th>
+                    <th className="px-4 py-3 text-left font-semibold">
+                      Department
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold">
+                      Days Worked
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold">
+                      Monthly Hours
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold">
+                      Total Hours
+                    </th>
+                    <th className="px-4 py-3 text-center font-semibold">
+                      Status
+                    </th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-
-          {currentMonthData.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No working hours data available for the selected month
+                </thead>
+                <tbody>
+                  {currentMonthData.map((item) => (
+                    <tr
+                      key={item.employee.id}
+                      className="border-b hover:bg-slate-50"
+                    >
+                      <td className="px-4 py-3">
+                        <div>
+                          <div className="font-medium text-slate-900">
+                            {item.employee.name || item.employee.username}
+                          </div>
+                          <div className="text-sm text-slate-500">
+                            {item.employee.email}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-slate-700">
+                        {item.employee.department}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {item.currentMonthDays}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {formatWorkingHours(
+                          item.currentMonthHours,
+                          item.currentMonthMinutes,
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {formatWorkingHours(item.totalHours, item.totalMinutes)}
+                      </td>
+                      <td className="px-4 py-3 text-center">
+                        {getEmployeeStatusBadge(item.employee.status)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           )}
         </CardContent>

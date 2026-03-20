@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -8,18 +8,24 @@ import { Separator } from "@/components/ui/separator";
 import {
   User,
   Mail,
-  Phone,
-  MapPin,
   Calendar,
   Clock,
   Building,
   Shield,
-  Edit,
   Camera,
   CheckCircle,
   XCircle,
+  Loader2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
+import {
+  API_URL,
+  apiFetch,
+  decodeJwtPayload,
+  getStoredToken,
+  isAdmin,
+  withApiAssetUrl,
+} from "@/lib/api";
 
 interface UserProfile {
   id: string;
@@ -35,6 +41,20 @@ interface UserProfile {
   createdAt?: string;
 }
 
+type JwtPayload = {
+  userId?: string;
+  email?: string;
+  role?: string;
+};
+
+const MAX_FILE_SIZE = 5 * 1024 * 1024;
+const ALLOWED_IMAGE_TYPES = [
+  "image/jpeg",
+  "image/png",
+  "image/webp",
+  "image/gif",
+];
+
 const ProfilePage = () => {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,165 +62,173 @@ const ProfilePage = () => {
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const router = useRouter();
 
+  const token = useMemo(() => getStoredToken(), []);
+
   useEffect(() => {
     fetchUserProfile();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchUserProfile = async () => {
     try {
-      const token = localStorage.getItem("token");
+      setLoading(true);
+      setError(null);
+
       if (!token) {
         router.push("/employee/login");
         return;
       }
 
-      // Decode token to get user ID (simple approach)
-      const payload = JSON.parse(atob(token.split(".")[1]));
-      const userId = payload.userId;
+      const payload = decodeJwtPayload<JwtPayload>(token);
+      const userId = payload?.userId;
 
-      const response = await fetch(`http://localhost:5000/prisma/${userId}`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
+      if (!userId) {
+        throw new Error("Unable to determine the logged in user.");
+      }
+
+      const userData = await apiFetch<UserProfile>(
+        `/prisma/${encodeURIComponent(userId)}`,
+        {
+          token,
+          cache: "no-store",
         },
+      );
+
+      setUser({
+        ...userData,
+        photo: withApiAssetUrl(userData.photo),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to fetch profile");
-      }
-
-      const userData = await response.json();
-      // Prepend backend URL to photo path for proper image display
-      if (userData.photo && userData.photo.startsWith("/uploads/")) {
-        userData.photo = `http://localhost:5000${userData.photo}`;
-      }
-      setUser(userData);
-    } catch (err: any) {
-      setError(err.message || "Failed to load profile");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to load profile");
     } finally {
       setLoading(false);
     }
   };
 
   const handlePhotoUpload = async (
-    event: React.ChangeEvent<HTMLInputElement>
+    event: React.ChangeEvent<HTMLInputElement>,
   ) => {
     const file = event.target.files?.[0];
     if (!file || !user) return;
 
-    // Validate file type
-    if (!file.type.startsWith("image/")) {
-      setError("Please select a valid image file");
+    setError(null);
+
+    if (!ALLOWED_IMAGE_TYPES.includes(file.type)) {
+      setError("Please select a JPG, PNG, WEBP, or GIF image.");
+      event.target.value = "";
       return;
     }
 
-    // Validate file size (max 5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      setError("File size must be less than 5MB");
+    if (file.size > MAX_FILE_SIZE) {
+      setError("File size must be less than or equal to 5MB.");
+      event.target.value = "";
       return;
     }
 
     setUploadingPhoto(true);
-    setError(null);
 
     try {
-      const token = localStorage.getItem("token");
-      const payload = JSON.parse(atob(token!.split(".")[1]));
-      const userId = payload.userId;
+      if (!token) {
+        throw new Error("Please login first.");
+      }
+
+      const payload = decodeJwtPayload<JwtPayload>(token);
+      const userId = payload?.userId;
+
+      if (!userId) {
+        throw new Error("Unable to determine the logged in user.");
+      }
 
       const formData = new FormData();
       formData.append("photo", file);
 
-      const response = await fetch(`http://localhost:5000/prisma/${userId}`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
+      const response = await fetch(
+        `${API_URL}/prisma/${encodeURIComponent(userId)}`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+          body: formData,
         },
-        body: formData,
-      });
+      );
+
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to upload photo");
+        throw new Error(data?.error || "Failed to upload photo");
       }
 
-      const updatedUser = await response.json();
-      // Prepend backend URL to photo path for proper display
-      if (updatedUser.photo && updatedUser.photo.startsWith("/uploads/")) {
-        updatedUser.photo = `http://localhost:5000${updatedUser.photo}`;
-      }
-      setUser(updatedUser);
-    } catch (err: any) {
-      setError(err.message || "Failed to upload photo");
+      const updatedUser = data as UserProfile;
+      setUser({
+        ...updatedUser,
+        photo: withApiAssetUrl(updatedUser.photo),
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to upload photo");
     } finally {
       setUploadingPhoto(false);
+      event.target.value = "";
     }
   };
 
   const getStatusBadge = (status: string) => {
-    switch (status) {
+    switch ((status || "").toUpperCase()) {
       case "CHECK_IN":
         return (
-          <Badge className="bg-green-100 text-green-800 border-green-200">
-            <CheckCircle className="w-3 h-3 mr-1" />
+          <Badge className="border-green-200 bg-green-100 text-green-800">
+            <CheckCircle className="mr-1 h-3 w-3" />
             Checked In
           </Badge>
         );
       case "CHECK_OUT":
-        return (
-          <Badge className="bg-gray-100 text-gray-800 border-gray-200">
-            <XCircle className="w-3 h-3 mr-1" />
-            Checked Out
-          </Badge>
-        );
       default:
         return (
-          <Badge className="bg-yellow-100 text-yellow-800 border-yellow-200">
-            <Clock className="w-3 h-3 mr-1" />
-            Unknown
+          <Badge className="border-gray-200 bg-gray-100 text-gray-800">
+            <XCircle className="mr-1 h-3 w-3" />
+            Checked Out
           </Badge>
         );
     }
   };
 
   const getRoleBadge = (role: string) => {
-    switch (role?.toLowerCase()) {
-      case "admin":
-        return (
-          <Badge className="bg-red-100 text-red-800 border-red-200">
-            <Shield className="w-3 h-3 mr-1" />
-            Administrator
-          </Badge>
-        );
-      case "employee":
-      default:
-        return (
-          <Badge className="bg-blue-100 text-blue-800 border-blue-200">
-            <User className="w-3 h-3 mr-1" />
-            Employee
-          </Badge>
-        );
+    if (isAdmin(role)) {
+      return (
+        <Badge className="border-red-200 bg-red-100 text-red-800">
+          <Shield className="mr-1 h-3 w-3" />
+          Administrator
+        </Badge>
+      );
     }
+
+    return (
+      <Badge className="border-blue-200 bg-blue-100 text-blue-800">
+        <User className="mr-1 h-3 w-3" />
+        Employee
+      </Badge>
+    );
   };
 
   if (loading) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex justify-center items-center min-h-[400px]">
-          <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading profile...</p>
+        <div className="flex min-h-[400px] items-center justify-center">
+          <div className="flex items-center gap-2 text-gray-600">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span>Loading profile...</span>
           </div>
         </div>
       </div>
     );
   }
 
-  if (error) {
+  if (error && !user) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex justify-center items-center min-h-[400px]">
+        <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
-            <div className="text-red-500 text-lg mb-2">
+            <div className="mb-2 text-lg text-red-500">
               Error loading profile
             </div>
             <div className="text-gray-600">{error}</div>
@@ -220,9 +248,9 @@ const ProfilePage = () => {
   if (!user) {
     return (
       <div className="container mx-auto p-6">
-        <div className="flex justify-center items-center min-h-[400px]">
+        <div className="flex min-h-[400px] items-center justify-center">
           <div className="text-center">
-            <div className="text-gray-500 text-lg">
+            <div className="text-lg text-gray-500">
               No profile data available
             </div>
           </div>
@@ -233,246 +261,170 @@ const ProfilePage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50">
-      <div className="container mx-auto p-6 max-w-4xl">
-        {/* Fancy Header
-        <div className="relative mb-8 overflow-hidden rounded-2xl bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600 p-8 text-white shadow-2xl">
-          <div className="absolute inset-0 bg-black/10"></div>
-          <div className="absolute -top-4 -right-4 w-24 h-24 bg-white/10 rounded-full blur-xl"></div>
-          <div className="absolute -bottom-4 -left-4 w-32 h-32 bg-white/10 rounded-full blur-xl"></div>
-
-          <div className="relative z-10">
-            <h1 className="text-4xl font-bold mb-2 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
-              My Profile
-            </h1>
-            <p className="text-blue-100 text-lg">
-              View and manage your account information
-            </p>
-          </div>
-        </div> */}
-
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Profile Photo Card */}
+      <div className="container mx-auto max-w-4xl p-6">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           <div className="lg:col-span-1">
             <Card className="text-center">
               <CardContent className="pt-6">
                 <div className="relative inline-block">
-                  <div className="w-32 h-32 mx-auto rounded-full overflow-hidden border-4 border-gray-200 bg-gray-100 flex items-center justify-center">
+                  <div className="mx-auto flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border-4 border-gray-200 bg-gray-100">
                     {user.photo ? (
                       <img
                         src={user.photo}
                         alt={user.name}
-                        className="w-full h-full object-cover"
+                        className="h-full w-full object-cover"
                       />
                     ) : (
-                      <User className="w-16 h-16 text-gray-400" />
+                      <User className="h-16 w-16 text-gray-400" />
                     )}
+
                     {uploadingPhoto && (
-                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                        <Loader2 className="h-8 w-8 animate-spin text-white" />
                       </div>
                     )}
                   </div>
+
                   <button
-                    className="absolute bottom-0 right-0 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition-colors disabled:opacity-50"
+                    type="button"
+                    className="absolute bottom-0 right-0 rounded-full bg-blue-600 p-2 text-white transition-colors hover:bg-blue-700 disabled:opacity-50"
                     disabled={uploadingPhoto}
                     onClick={() =>
                       document.getElementById("photo-upload")?.click()
                     }
                   >
-                    <Camera className="w-4 h-4" />
+                    <Camera className="h-4 w-4" />
                   </button>
+
                   <input
                     id="photo-upload"
                     type="file"
-                    accept="image/*"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
                     onChange={handlePhotoUpload}
                     className="hidden"
                   />
                 </div>
 
-                <h2 className="text-xl font-bold text-gray-900 mt-4">
+                <h2 className="mt-4 text-xl font-bold text-gray-900">
                   {user.name}
                 </h2>
-                <p className="text-gray-600 mb-2">{user.username}</p>
+                <p className="mb-2 text-gray-600">@{user.username}</p>
 
-                <div className="flex justify-center space-x-2 mb-4">
+                <div className="mb-4 flex justify-center space-x-2">
                   {getRoleBadge(user.role)}
                   {getStatusBadge(user.status)}
                 </div>
 
-                <Button variant="outline" className="w-full">
-                  <Edit className="w-4 h-4 mr-2" />
-                  Edit Profile
-                </Button>
+                <p className="text-xs text-gray-500">
+                  Upload-safe photo handling enabled
+                </p>
               </CardContent>
             </Card>
           </div>
 
-          {/* Profile Details */}
-          <div className="lg:col-span-2 space-y-6">
-            {/* Personal Information */}
+          <div className="space-y-6 lg:col-span-2">
+            {error && (
+              <div className="rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {error}
+              </div>
+            )}
+
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <User className="w-5 h-5 mr-2" />
+                  <User className="mr-2 h-5 w-5" />
                   Personal Information
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Full Name
-                    </label>
-                    <p className="text-gray-900 font-medium">{user.name}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Username
-                    </label>
-                    <p className="text-gray-900 font-medium">{user.username}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600 flex items-center">
-                      <Mail className="w-4 h-4 mr-1" />
-                      Email Address
-                    </label>
-                    <p className="text-gray-900 font-medium">{user.email}</p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600 flex items-center">
-                      <Building className="w-4 h-4 mr-1" />
-                      Department
-                    </label>
-                    <p className="text-gray-900 font-medium">
-                      {user.department}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Work Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Building className="w-5 h-5 mr-2" />
-                  Work Information
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Role
-                    </label>
-                    <div className="mt-1">{getRoleBadge(user.role)}</div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Current Status
-                    </label>
-                    <div className="mt-1">{getStatusBadge(user.status)}</div>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600 flex items-center">
-                      <Calendar className="w-4 h-4 mr-1" />
-                      Member Since
-                    </label>
-                    <p className="text-gray-900 font-medium">
-                      {user.createdAt
-                        ? new Date(user.createdAt).toLocaleDateString("en-US", {
-                            year: "numeric",
-                            month: "long",
-                            day: "numeric",
-                          })
-                        : "N/A"}
-                    </p>
-                  </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Employee ID
-                    </label>
-                    <p className="text-gray-900 font-medium font-mono text-sm">
-                      {user.employeeId.slice(-8).toUpperCase()}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Security Information */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center">
-                  <Shield className="w-5 h-5 mr-2" />
-                  Security & Access
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Biometric Status
-                    </label>
-                    <div className="mt-1">
-                      <Badge className="bg-green-100 text-green-800 border-green-200">
-                        <CheckCircle className="w-3 h-3 mr-1" />
-                        Fingerprint Registered
-                      </Badge>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex items-start space-x-3">
+                    <User className="mt-0.5 h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Full Name
+                      </p>
+                      <p className="text-sm text-gray-600">{user.name}</p>
                     </div>
                   </div>
-                  <div>
-                    <label className="text-sm font-medium text-gray-600">
-                      Last Login
-                    </label>
-                    <p className="text-gray-900 font-medium">
-                      {new Date().toLocaleDateString("en-US", {
-                        weekday: "long",
-                        year: "numeric",
-                        month: "short",
-                        day: "numeric",
-                      })}
-                    </p>
+
+                  <div className="flex items-start space-x-3">
+                    <Mail className="mt-0.5 h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Email</p>
+                      <p className="text-sm text-gray-600">{user.email}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Building className="mt-0.5 h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Department
+                      </p>
+                      <p className="text-sm text-gray-600">{user.department}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Shield className="mt-0.5 h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">Role</p>
+                      <p className="text-sm text-gray-600">
+                        {isAdmin(user.role) ? "Administrator" : "Employee"}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
                 <Separator />
 
-                <div className="flex space-x-3">
-                  <Button variant="outline" size="sm">
-                    Change Password
-                  </Button>
-                  <Button variant="outline" size="sm">
-                    Update Biometric
-                  </Button>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="flex items-start space-x-3">
+                    <Calendar className="mt-0.5 h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Employee ID
+                      </p>
+                      <p className="text-sm text-gray-600">{user.employeeId}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-start space-x-3">
+                    <Clock className="mt-0.5 h-4 w-4 text-gray-500" />
+                    <div>
+                      <p className="text-sm font-medium text-gray-900">
+                        Attendance Status
+                      </p>
+                      <p className="text-sm text-gray-600">{user.status}</p>
+                    </div>
+                  </div>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Quick Actions */}
             <Card>
               <CardHeader>
-                <CardTitle>Quick Actions</CardTitle>
+                <CardTitle>Account Summary</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 gap-3">
-                  <Button
-                    variant="outline"
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                    onClick={() => router.push("/employee/attendance")}
-                  >
-                    <Clock className="w-6 h-6" />
-                    <span className="text-sm">Check Attendance</span>
-                  </Button>
-                  <Button
-                    variant="outline"
-                    className="h-20 flex flex-col items-center justify-center space-y-2"
-                    onClick={() => router.push("/employee/request")}
-                  >
-                    <Calendar className="w-6 h-6" />
-                    <span className="text-sm">Submit Request</span>
-                  </Button>
+              <CardContent className="grid gap-4 md:grid-cols-3">
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Username</p>
+                  <p className="mt-1 font-semibold text-slate-900">
+                    @{user.username}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Department</p>
+                  <p className="mt-1 font-semibold text-slate-900">
+                    {user.department}
+                  </p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-white p-4">
+                  <p className="text-sm text-slate-500">Role</p>
+                  <p className="mt-1 font-semibold text-slate-900">
+                    {isAdmin(user.role) ? "Admin" : "Employee"}
+                  </p>
                 </div>
               </CardContent>
             </Card>
