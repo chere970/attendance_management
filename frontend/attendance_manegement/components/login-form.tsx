@@ -10,9 +10,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getApiUrl } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
+
 export function LoginForm({
   className,
   ...props
@@ -42,17 +43,20 @@ export function LoginForm({
       // const res = await fetch("http://localhost:5000/prisma/login", {
       const res = await fetch(
         // "https://attendance-management-ynfm.onrender.com/prisma/login",
-        `${API_URL}/prisma/login`,
+        getApiUrl("/prisma/login"),
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify(formData),
-        }
+        },
       );
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      const data = contentType.includes("application/json")
+        ? await res.json()
+        : { error: (await res.text()) || "Login failed" };
 
       if (!res.ok) {
         throw new Error(data.error || "Login failed");
@@ -69,7 +73,7 @@ export function LoginForm({
         router.push("/employee/dashboard");
       }
     } catch (error: any) {
-      setError(error.message);
+      setError(error?.message || "Unable to reach backend service");
     } finally {
       setLoading(false);
     }

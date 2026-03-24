@@ -11,10 +11,9 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getApiUrl } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:5000";
 
 export function SignupForm({
   className,
@@ -36,7 +35,7 @@ export function SignupForm({
   const [error, setError] = useState("");
 
   const handleInputChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { id, value } = e.target;
     setFormData((prev) => ({
@@ -65,14 +64,17 @@ export function SignupForm({
 
       const res = await fetch(
         // "https://attendance-management-ynfm.onrender.com/prisma/signup",
-        `${API_URL}/prisma/signup`,
+        getApiUrl("/prisma/signup"),
         {
           method: "POST",
           body: form, // ✅ send FormData (not JSON)
-        }
+        },
       );
 
-      const data = await res.json();
+      const contentType = res.headers.get("content-type") || "";
+      const data = contentType.includes("application/json")
+        ? await res.json()
+        : { error: (await res.text()) || "Signup failed" };
 
       if (!res.ok) {
         throw new Error(data.error || "Signup failed");
@@ -89,7 +91,7 @@ export function SignupForm({
         router.push("/employee/dashboard");
       }
     } catch (error: any) {
-      setError(error.message);
+      setError(error?.message || "Unable to reach backend service");
     } finally {
       setLoading(false);
     }

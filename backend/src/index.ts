@@ -15,13 +15,34 @@ const prisma = new PrismaClient({
   log: ["query", "info", "warn", "error"],
 });
 
+const getAllowedOrigins = () => {
+  const entries = [process.env.FRONTEND_URL, process.env.FRONTEND_URLS]
+    .filter((value): value is string => !!value)
+    .flatMap((value) => value.split(","))
+    .map((value) => value.trim())
+    .filter(Boolean);
+
+  return new Set(entries);
+};
+
+const allowedOrigins = getAllowedOrigins();
+
+const isLocalOrigin = (origin: string) =>
+  /^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin);
+
 app.use(
   cors({
-    origin: [
-      process.env.FRONTEND_URL || "http://localhost:3000",
-      "http://localhost:3000",
-    ],
+    origin: (origin, callback) => {
+      if (!origin || isLocalOrigin(origin) || allowedOrigins.has(origin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+    optionsSuccessStatus: 204,
   }),
 );
 
