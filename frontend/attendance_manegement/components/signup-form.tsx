@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { getApiUrl } from "@/lib/api";
+import { getApiUrl, isAdmin, setAuthSession } from "@/lib/api";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -26,7 +26,6 @@ export function SignupForm({
     employeeId: "",
     email: "",
     password: "",
-    role: "employee",
     department: "",
   });
   const [photo, setPhoto] = useState<File | null>(null);
@@ -62,14 +61,10 @@ export function SignupForm({
       });
       if (photo) form.append("photo", photo);
 
-      const res = await fetch(
-        // "https://attendance-management-ynfm.onrender.com/prisma/signup",
-        getApiUrl("/prisma/signup"),
-        {
-          method: "POST",
-          body: form, // ✅ send FormData (not JSON)
-        },
-      );
+      const res = await fetch(getApiUrl("/prisma/signup"), {
+        method: "POST",
+        body: form,
+      });
 
       const contentType = res.headers.get("content-type") || "";
       const data = contentType.includes("application/json")
@@ -80,16 +75,10 @@ export function SignupForm({
         throw new Error(data.error || "Signup failed");
       }
 
-      // store token & user
-      localStorage.setItem("token", data.token);
-      localStorage.setItem("user", JSON.stringify(data.user));
-
-      // redirect
-      if (data.user.role === "admin") {
-        router.push("/admin/dashboard");
-      } else {
-        router.push("/employee/dashboard");
-      }
+      setAuthSession(data.token, data.user);
+      router.push(
+        isAdmin(data.user.role) ? "/admin/dashboard" : "/employee/dashboard",
+      );
     } catch (error: any) {
       setError(error?.message || "Unable to reach backend service");
     } finally {
@@ -101,8 +90,10 @@ export function SignupForm({
     <div className={cn("flex flex-col gap-6", className)} {...props}>
       <Card>
         <CardHeader className="text-center">
-          <CardTitle className="text-xl">Create Account</CardTitle>
-          <CardDescription>Sign up for a new account</CardDescription>
+          <CardTitle className="text-xl">Create account</CardTitle>
+          <CardDescription>
+            Register as an employee to start tracking attendance
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSignup} encType="multipart/form-data">
@@ -159,20 +150,6 @@ export function SignupForm({
                 </div>
 
                 <div className="grid gap-3">
-                  <Label htmlFor="role">Role</Label>
-                  <select
-                    id="role"
-                    value={formData.role}
-                    onChange={handleInputChange}
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
-                    required
-                  >
-                    <option value="employee">EMPLOYEE</option>
-                    <option value="admin">ADMIN</option>
-                  </select>
-                </div>
-
-                <div className="grid gap-3">
                   <Label htmlFor="department">Department</Label>
                   <Input
                     id="department"
@@ -194,9 +171,8 @@ export function SignupForm({
                   />
                 </div>
 
-                {/* ✅ Photo upload */}
                 <div className="grid gap-3">
-                  <Label htmlFor="photo">Profile Photo</Label>
+                  <Label htmlFor="photo">Profile photo</Label>
                   <Input
                     id="photo"
                     type="file"

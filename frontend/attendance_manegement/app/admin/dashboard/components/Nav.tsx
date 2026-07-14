@@ -1,67 +1,55 @@
 "use client";
 
 import Link from "next/link";
-import React from "react";
-import Image from "next/image";
-import { User, UserPlus } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Brand } from "@/components/brand";
+
+const links = [
+  { href: "/admin/dashboard", label: "Employees", exact: true },
+  { href: "/admin/dashboard/attendanceSummary", label: "Summary" },
+  { href: "/admin/dashboard/requests", label: "Requests" },
+  { href: "/admin/dashboard/performance", label: "Performance" },
+];
 
 export const Nav = () => {
   const router = useRouter();
+  const pathname = usePathname();
+
   return (
-    <nav className="flex items-center bg-amber-50 p-2">
-      <div className="flex space-x-5 mx-5 text-black justify-between w-full">
-        <div className="flex items-center space-x-2">
-          <Link href="/dashboard">
-            <Image src="/logo.png" alt="cbe logo" width={50} height={50} />
-          </Link>
-          <h1 className="text-purple-700 text-2xl font-bold">CBE</h1>
-        </div>
-        <div className="space-x-5">
-          <Link
-            className="text-lg font-semibold text-gray-700 hover:text-purple-600 hover:text-xl transition-colors"
-            href="/admin/dashboard"
-          >
-            Home
-          </Link>
+    <nav className="border-b border-slate-200/80 bg-white/90 backdrop-blur">
+      <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-4 py-3">
+        <Brand href="/admin/dashboard" />
 
-          <Link
-            className="text-lg font-semibold text-gray-700 hover:text-purple-600  hover:text-xl transition-colors"
-            href="/admin/dashboard/attendanceSummary"
-          >
-            Summary
-          </Link>
-          <Link
-            className="text-lg font-semibold text-gray-700 hover:text-purple-600  hover:text-xl transition-colors"
-            href="/admin/dashboard/requests"
-          >
-            Request
-          </Link>
-          <Link
-            className="text-lg font-semibold text-gray-700 hover:text-purple-600  hover:text-xl transition-colors"
-            href="/admin/dashboard/performance"
-          >
-            performance
-          </Link>
+        <div className="flex flex-wrap items-center gap-1">
+          {links.map((link) => {
+            const active = link.exact
+              ? pathname === link.href
+              : pathname?.startsWith(link.href);
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+                  active
+                    ? "bg-teal-50 text-teal-800"
+                    : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                }`}
+              >
+                {link.label}
+              </Link>
+            );
+          })}
         </div>
-        <div className="flex item-center">
-          {/* <div className="flex px-3 py-1 text-lg  rounded-2xl bg-purple-600">
-            <Link href="/login">Login </Link>
-          </div>
-          <div className="flex px-3 py-1 ml-2 text-lg  rounded-2xl bg-indigo-50">
-            <Link href="/profile">
-              <User href="/profile" className="text-black text-lg ml-2" />
-            </Link>
-          </div> */}
 
-          <Button
-            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700"
-            onClick={() => router.push("/admin/dashboard/addNewEmployee")}
-          >
-            <UserPlus className="w-4 h-4" /> Add Employee
-          </Button>
-        </div>
+        <Button
+          className="bg-teal-700 hover:bg-teal-800"
+          onClick={() => router.push("/admin/dashboard/addNewEmployee")}
+        >
+          <UserPlus className="size-4" />
+          Add Employee
+        </Button>
       </div>
     </nav>
   );

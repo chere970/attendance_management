@@ -710,7 +710,8 @@ router.post("/signup", uploadPhoto, async (req: Request, res: Response) => {
     const username = body.username?.toString().trim() || "";
     const email = body.email?.toString().trim().toLowerCase() || "";
     const password = body.password?.toString() || "";
-    const role = normalizeRole(body.role);
+    // Public signup always creates employees; admins are provisioned by an admin.
+    const role = "employee";
     const department = body.department?.toString().trim() || "";
 
     if (

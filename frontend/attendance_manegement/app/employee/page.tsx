@@ -1,7 +1,5 @@
-import React from "react";
+import { redirect } from "next/navigation";
 
-const page = () => {
-  return <div>this is home page</div>;
-};
-
-export default page;
+export default function EmployeeIndexPage() {
+  redirect("/employee/dashboard");
+}

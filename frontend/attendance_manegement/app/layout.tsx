@@ -13,8 +13,12 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Attendance Management",
-  description: "Employee attendance system",
+  title: {
+    default: "AttendHub",
+    template: "%s | AttendHub",
+  },
+  description:
+    "Full-stack attendance management — check-in/out, leave requests, and admin analytics.",
 };
 
 export default function RootLayout({

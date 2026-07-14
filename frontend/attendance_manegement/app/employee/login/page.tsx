@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Brand } from "@/components/brand";
 import { apiFetch, isAdmin, setAuthSession } from "@/lib/api";
 
 type LoginResponse = {
@@ -88,26 +89,9 @@ const LoginPage = () => {
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-6">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
-          <div className="mb-4 inline-flex h-16 w-16 items-center justify-center rounded-2xl bg-black">
-            <svg
-              className="h-8 w-8 text-white"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"
-              />
-            </svg>
-          </div>
-
-          <h1 className="mb-2 text-3xl font-bold text-gray-900">
-            Welcome Back
-          </h1>
-          <p className="text-gray-600">Sign in to your account</p>
+          <Brand className="mb-6 justify-center" />
+          <h1 className="mb-2 text-3xl font-bold text-gray-900">Welcome back</h1>
+          <p className="text-gray-600">Sign in with your employee credentials</p>
         </div>
 
         <Card className="border-0 bg-white/80 shadow-xl backdrop-blur-sm">
@@ -164,20 +148,12 @@ const LoginPage = () => {
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between">
-                    <Label
-                      htmlFor="password"
-                      className="text-sm font-medium text-gray-700"
-                    >
-                      Password
-                    </Label>
-                    <a
-                      href="#"
-                      className="text-sm text-blue-600 hover:text-blue-500"
-                    >
-                      Forgot password?
-                    </a>
-                  </div>
+                  <Label
+                    htmlFor="password"
+                    className="text-sm font-medium text-gray-700"
+                  >
+                    Password
+                  </Label>
                   <Input
                     id="password"
                     type="password"

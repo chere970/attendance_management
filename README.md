@@ -1,85 +1,99 @@
-# Attendance Management
+# AttendHub
 
-This repository contains a full-stack Attendance Management application.
+Full-stack attendance and leave management system with separate employee and admin portals.
 
-- Backend: Express + Prisma (MongoDB)
-- Frontend: Next.js (app router) + React + TypeScript
+**Stack:** Next.js 16 · React 19 · TypeScript · Tailwind CSS · Express · Prisma · MongoDB · JWT
 
-## Overview
+## Features
 
-Features:
+- **Employee portal** — check-in / check-out, leave & sick requests, attendance history, profile
+- **Admin portal** — employee CRUD with photo upload, request approve/reject, attendance summary charts, working-hours performance
+- **Auth** — JWT + bcrypt, role-based API guards (employee vs admin)
 
-- Employee management (create, update, photo upload)
-- Attendance check-in / check-out
-- Admin dashboard with request management (leave/sick requests)
-- JWT-based authentication
+## Screenshots
 
-## Fix applied
+Add screenshots of the landing page, employee dashboard, and admin summary here after you deploy or run locally.
 
-Issue: The admin dashboard at `app/admin/dashboard/requests/page.tsx` could not fetch requests from the backend and returned a 403 (Access denied) even for valid admin users.
-
-Root cause: Role value in JWT token sometimes used uppercase (`"ADMIN"`) while backend role checks compared only against `'admin'` and `'Admin'`, causing a mismatch and a 403.
-
-Change made: Backend role checks are now case-insensitive. In `backend/src/index.ts` the admin checks were updated to:
-
-```ts
-const role = (authReq.user?.role || "").toString().toLowerCase();
-if (role !== "admin") {
-  return res.status(403).json({ error: "Access denied" });
-}
-```
-
-This ensures `ADMIN`, `admin`, or `Admin` all allow admin-only endpoints.
-
-## Local setup
-
-Prerequisites:
-
-- Node.js 18+ and npm
-- MongoDB (Atlas or local) with a connection string
-
-Backend
-
-1. cd backend
-2. Create a `.env` file with at least:
+## Architecture
 
 ```
-DATABASE_URL=<your_mongo_connection_string>
-JWT_SECRET=<a_secret_key>
-PORT=5000
+Browser (Next.js)  --Bearer JWT-->  Express API (:5000)
+                                       ├── /prisma/*      employees, login, signup
+                                       ├── /requests*     leave workflow
+                                       ├── /attendance/*  check-in/out, history, summary
+                                       └── MongoDB (Prisma)
 ```
 
-3. Install and run:
+## Quick start
+
+### Prerequisites
+
+- Node.js 18+
+- MongoDB (local or Atlas)
+
+### Backend
 
 ```bash
 cd backend
+cp .env.example .env   # set DATABASE_URL and JWT_SECRET
 npm install
-npm run build   # if applicable
-npm run dev     # or `node dist/index.js` depending on scripts
+npx prisma generate
+npm run dev
 ```
 
-Frontend
+API defaults to `http://localhost:5000`. Health check: `GET /health`.
 
-1. cd frontend/attendance_manegement
-2. Install and run:
+### Frontend
 
 ```bash
 cd frontend/attendance_manegement
+cp .env.example .env.local   # optional; defaults to localhost:5000
 npm install
 npm run dev
 ```
 
-Notes
+App defaults to `http://localhost:3000`.
 
-- The frontend stores JWT token at `localStorage.token` on login. Ensure you log in as an admin account so admin endpoints (like `/requests`) return data.
-- Backend exposes request routes at `http://localhost:5000/requests` (admin) and `http://localhost:5000/requests/my-requests` (employee).
+## Environment variables
 
-## Next steps / Troubleshooting
+**Backend (`backend/.env`)**
 
-- If you still see 403 responses, inspect the stored user object in localStorage (key: `user`) and confirm the `role` value; it should be `admin`/`ADMIN` etc.
-- If CORS errors occur, ensure backend `cors()` is enabled and frontend origin is allowed.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `DATABASE_URL` | yes | MongoDB connection string |
+| `JWT_SECRET` | yes | Secret for signing JWTs |
+| `PORT` | no | Defaults to `5000` |
+| `FRONTEND_URL` / `FRONTEND_URLS` | no | Allowed CORS origins (comma-separated) |
 
-If you'd like, I can:
+**Frontend (`frontend/attendance_manegement/.env.local`)**
 
-- Run a quick lint or start the servers locally (if you want me to run commands here).
-- Update other role checks to use a central helper function.
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `NEXT_PUBLIC_API_URL` | no | API base URL (default `http://localhost:5000`) |
+
+## Creating an admin user
+
+Public signup always creates an **employee**. To get an admin:
+
+1. Sign up as a normal employee, or create one from the admin UI once you have access
+2. In MongoDB, set that employee's `role` to `admin` (or `ADMIN`)
+3. Log in again — you'll be redirected to `/admin/dashboard`
+
+## Demo / portfolio tips
+
+- Deploy the API and frontend, then put the live URL in this README
+- Capture 2–3 GIFs or screenshots of check-in, leave approval, and the admin summary
+- Do not commit real `.env` files or production secrets
+
+## Project layout
+
+```
+backend/                         Express + Prisma API
+frontend/attendance_manegement/  Next.js app (folder name keeps historical spelling)
+```
+
+## Portfolio checklist
+
+- [ ] Run locally and capture screenshots / a short demo GIF
+- [ ] Deploy frontend + API and add the live URL at the top of this README
+- [ ] Create one admin user (see above) for reviewers to explore the full app

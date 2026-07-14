@@ -52,9 +52,6 @@ app.use(express.urlencoded({ extended: true }));
 const uploadsDir = path.resolve(process.cwd(), "uploads");
 app.use("/uploads", express.static(uploadsDir));
 
-const Arifpay = require("arifpay-express-plugin");
-const arifpay = new Arifpay(process.env.API_KEY, "2026-02-01T03:45:27");
-
 interface AuthenticatedRequest extends Request {
   user?: {
     userId: string;
@@ -119,23 +116,6 @@ const parseLimit = (value: unknown, fallback = 20, max = 100) => {
   if (!Number.isFinite(parsed) || parsed <= 0) return fallback;
   return Math.min(Math.floor(parsed), max);
 };
-
-app.post("/api/pay", async (req: Request, res: Response) => {
-  try {
-    const response = await arifpay.Make_payment(req);
-    const result = JSON.parse(response);
-
-    if (!result.error && result.data?.paymentUrl) {
-      return res.redirect(result.data.paymentUrl);
-    }
-
-    console.error("ArifPay API Error:", result.msg);
-    return res.redirect(req.body.errorUrl);
-  } catch (e) {
-    console.error("Unexpected Error:", e);
-    return res.redirect(req.body.errorUrl);
-  }
-});
 
 app.post("/requests", verifyToken, async (req: Request, res: Response) => {
   try {
