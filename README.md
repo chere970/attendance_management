@@ -97,3 +97,5 @@ frontend/attendance_manegement/  Next.js app (folder name keeps historical spell
 - [ ] Run locally and capture screenshots / a short demo GIF
 - [ ] Deploy frontend + API and add the live URL at the top of this README
 - [ ] Create one admin user (see above) for reviewers to explore the full app
+
+## to commit
