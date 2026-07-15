@@ -145,12 +145,11 @@ const SelectSeparator = React.forwardRef<
 ));
 SelectSeparator.displayName = SelectPrimitive.Separator.displayName;
 
-const HoverSelect = React.forwardRef<
-  React.ElementRef<typeof SelectPrimitive.Root>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Root>
->(({ children, ...props }, ref) => {
+const HoverSelect = ({ children, ...props }: React.ComponentPropsWithoutRef<
+  typeof SelectPrimitive.Root
+>) => {
   const [isOpen, setIsOpen] = React.useState(false);
-  const timeoutRef = React.useRef<NodeJS.Timeout>();
+  const timeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const handleMouseEnter = () => {
     if (timeoutRef.current) {
@@ -176,7 +175,7 @@ const HoverSelect = React.forwardRef<
       </Select>
     </div>
   );
-});
+};
 HoverSelect.displayName = "HoverSelect";
 
 export {
