@@ -10,7 +10,7 @@ generator client {
 }
 
 datasource db {
-  provider = "mongodb"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -29,7 +29,7 @@ enum EmployeeRole {
 }
 
 model Employee {
-  id          String          @id @default(auto()) @map("_id") @db.ObjectId
+  id          String          @id @default(uuid())
   name        String?
   employeeId  String          @unique
   username    String
@@ -60,7 +60,7 @@ enum RequestType {
 }
 
 model Request {
-  id          String        @id @default(auto()) @map("_id") @db.ObjectId
+  id          String        @id @default(uuid())
   employeeId  String
   type        RequestType
   title       String
@@ -78,7 +78,7 @@ model Request {
 }
 
 model Attendance {
-  id         String    @id @default(auto()) @map("_id") @db.ObjectId
+  id         String    @id @default(uuid())
   employeeId String
   date       DateTime
   checkIn    DateTime

@@ -69,7 +69,7 @@ const upload = multer({
 
 const uploadPhoto = upload.single("photo");
 
-const objectIdRegex = /^[0-9a-fA-F]{24}$/;
+const uuidRegex = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 
 const normalizeRole = (role?: string | null) => {
   const value = (role || "employee").toString().trim().toLowerCase();
@@ -402,7 +402,7 @@ router.get(
     try {
       const id = req.params.id;
 
-      if (id === "favicon.ico" || !objectIdRegex.test(id)) {
+      if (id === "favicon.ico" || !uuidRegex.test(id)) {
         return res.status(404).json({ error: "Invalid employee ID" });
       }
 
@@ -430,7 +430,7 @@ router.get("/:id", verifyToken, async (req: Request, res: Response) => {
   try {
     const id = req.params.id;
 
-    if (id === "favicon.ico" || !objectIdRegex.test(id)) {
+    if (id === "favicon.ico" || !uuidRegex.test(id)) {
       return res.status(404).json({ error: "Invalid employee ID" });
     }
 
@@ -521,7 +521,7 @@ router.patch(
   async (req: Request, res: Response) => {
     const id = req.params.id;
 
-    if (id === "favicon.ico" || !objectIdRegex.test(id)) {
+    if (id === "favicon.ico" || !uuidRegex.test(id)) {
       if (req.file) void safeDeleteFile(getPhotoUrl(req.file.filename));
       return res.status(404).json({ error: "Invalid employee ID" });
     }
@@ -628,7 +628,7 @@ router.delete(
   async (req: Request, res: Response) => {
     const id = req.params.id;
 
-    if (id === "favicon.ico" || !objectIdRegex.test(id)) {
+    if (id === "favicon.ico" || !uuidRegex.test(id)) {
       return res.status(404).json({ error: "Invalid employee ID" });
     }
 

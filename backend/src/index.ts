@@ -1,4 +1,3 @@
-import { PrismaClient } from "../generated/prisma";
 import express, { Express, Request, Response, NextFunction } from "express";
 import prismaRouter from "./routes/prismahome";
 import cors from "cors";
@@ -6,7 +5,13 @@ import dotenv from "dotenv";
 import jwt from "jsonwebtoken";
 import path from "path";
 
-dotenv.config();
+dotenv.config({
+  path: path.resolve(__dirname, "..", ".env"),
+  override: true,
+});
+
+const prismaClientModule = require("../generated/prisma") as typeof import("../generated/prisma");
+const { PrismaClient } = prismaClientModule;
 
 const app: Express = express();
 const PORT: number = parseInt(process.env.PORT || "5000", 10);
@@ -606,8 +611,15 @@ async function main() {
     await prisma.$connect();
     console.log("✅ Connected to database successfully");
 
-    const employeeCount = await prisma.employee.count();
-    console.log(`📊 Found ${employeeCount} employees in database`);
+    void prisma.employee
+      .count()
+      .then((employeeCount) => {
+        console.log(`📊 Found ${employeeCount} employees in database`);
+      })
+      .catch((error) => {
+        console.warn("⚠️ Skipping startup employee count:");
+        console.warn(error);
+      });
   } catch (error) {
     console.error("❌ Database connection failed:");
     console.error(error);
