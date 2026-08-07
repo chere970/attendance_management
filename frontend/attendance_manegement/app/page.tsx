@@ -74,8 +74,8 @@ export default function HomePage() {
             AttendHub
           </h1>
           <p className="mt-5 max-w-xl text-lg leading-relaxed text-slate-600">
-            A full-stack system for daily attendance, leave workflows, and admin
-            reporting — built with Next.js, Express, Prisma, and MongoDB.
+            A modern system for daily attendance, leave workflows, and admin
+            reporting.
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Button
